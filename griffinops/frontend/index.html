@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GriffinOps Enterprise - AI SRE Copilot & Developer API Portal</title>
+  <meta name="description" content="Predictive AIOps Observability, Supabase Auth, Real Live Website Telemetry, PyTorch TCN Forecasting, and DOCX Architectural Documentation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <!-- Login & Registration Screen Overlay -->
+  <div class="auth-overlay" id="auth-screen">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo">🦅</div>
+        <h2>GriffinOps Enterprise</h2>
+        <p>Supabase Auth & Autonomous AI SRE Portal</p>
+      </div>
+
+      <!-- Auth Switcher Tabs -->
+      <div class="auth-tabs">
+        <button class="auth-tab-btn active" id="btn-tab-login" onclick="switchAuthTab('login')">Sign In</button>
+        <button class="auth-tab-btn" id="btn-tab-register" onclick="switchAuthTab('register')">Create Account</button>
+      </div>
+      
+      <!-- Login Form -->
+      <div class="auth-body" id="auth-form-login">
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="login-email" value="admin@griffinops.io" placeholder="developer@company.com">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-pass" value="admin123" placeholder="••••••••">
+        </div>
+        <div class="auth-error" id="login-error"></div>
+        <button class="btn btn-primary btn-block" onclick="handleLogin()">Sign In to Portal</button>
+      </div>
+
+      <!-- Register Form -->
+      <div class="auth-body" id="auth-form-register" style="display:none;">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="reg-name" placeholder="Alex Rivera">
+        </div>
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="email" id="reg-email" placeholder="alex@sies.edu">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="reg-pass" placeholder="••••••••">
+        </div>
+        <div class="auth-error" id="reg-error"></div>
+        <button class="btn btn-primary btn-block" onclick="handleRegister()">Register Account</button>
+      </div>
+
+      <div class="auth-footer">
+        Default Demo Credentials: <code>admin@griffinops.io</code> / <code>admin123</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-layout" id="main-app" style="display:none;">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="logo">🦅</span>
+        <div class="brand-info">
+          <span class="name">GriffinOps</span>
+          <span class="edition">REAL TELEMETRY v2.3</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" onclick="switchTab('profile')">
+          <span class="nav-icon">👤</span> User Profile & Settings
+        </button>
+        <button class="nav-item" onclick="switchTab('api-portal')">
+          <span class="nav-icon">🔑</span> API Details & API Keys
+        </button>
+        <button class="nav-item" onclick="switchTab('telemetry')">
+          <span class="nav-icon">🌐</span> Real Website Telemetry & TCN
+        </button>
+        <button class="nav-item" onclick="switchTab('illustrations')">
+          <span class="nav-icon">🪄</span> AI Illustrations & Code Fixes
+        </button>
+        <button class="nav-item" onclick="switchTab('reports')">
+          <span class="nav-icon">📜</span> Audit Reports & DOCX Export
+        </button>
+      </nav>
+
+      <div class="standalone-store-link">
+        <a href="/store" target="_blank" class="store-nav-btn">🛒 Open Standalone Store App ↗</a>
+      </div>
+
+      <div class="user-session-box">
+        <div class="user-avatar" id="user-avatar-tag">SL</div>
+        <div class="user-details">
+          <span class="user-name" id="user-display-name">SRE Lead</span>
+          <span class="user-role" id="user-display-role">CHIEF ARCHITECT</span>
+        </div>
+        <button class="logout-btn" onclick="handleLogout()">🚪</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Wrapper -->
+    <div class="content-wrapper">
+      <header class="topbar">
+        <div class="page-title" id="page-title-display">User Profile & Email Alert Settings</div>
+        
+        <div class="watchdog-badge">
+          <span class="pulse-amber"></span> Background Email Watchdog Active
+        </div>
+
+        <div class="system-health-pill" id="system-status-indicator">
+          <span class="status-dot"></span>
+          <span class="status-text" id="system-status-text">SYSTEM HEALTHY</span>
+        </div>
+      </header>
+
+      <!-- TAB 1: User Profile & Alert Settings -->
+      <main class="tab-content active" id="tab-profile">
+        <div class="portal-grid">
+          <div class="profile-cards-layout">
+            <section class="card">
+              <div class="card-header">
+                <h2>SRE Engineer Profile Details</h2>
+                <span class="badge badge-amber" id="auth-mode-badge">Supabase Auth Session</span>
+              </div>
+              <div class="profile-info-grid">
+                <div class="profile-avatar-large" id="profile-avatar-big">SL</div>
+                <div class="profile-details-list">
+                  <div class="info-row"><label>Full Name:</label><span id="profile-name">SRE Lead Engineer</span></div>
+                  <div class="info-row"><label>Email Address:</label><span id="profile-email">admin@griffinops.io</span></div>
+                  <div class="info-row"><label>SRE Role:</label><span id="profile-role">Chief SRE Architect</span></div>
+                  <div class="info-row"><label>Organization:</label><span>SIES GST AI & Data Science Team</span></div>
+                  <div class="info-row"><label>Monitored Microservices:</label><span>6 Production Services</span></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-header">
+                <h2>Automated Background Email Watchdog Settings</h2>
+                <span class="badge badge-rose">No Click Required</span>
+              </div>
+              <p style="color:var(--text-muted); font-size:13px; margin-bottom:14px;">
+                The background watchdog continuously evaluates PyTorch TCN forecasts. When a failure trajectory is predicted, it <strong>automatically dispatches email notifications to developers in the background instantly</strong>.
+              </p>
+              <div class="form-group">
+                <label>Registered Developer Alert Email Addresses (Comma Separated):</label>
+                <input type="text" id="pref-dev-emails" value="sre-dev@sies.edu, lead-dev@company.com">
+              </div>
+              <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+                <input type="checkbox" id="pref-alerts-enabled" checked style="width:auto;">
+                <label for="pref-alerts-enabled" style="margin:0;">Enable Instant Automated Background Email Dispatch</label>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:14px;">
+                <button class="btn btn-primary" onclick="saveProfileSettings()">Save Email Preferences</button>
+                <button class="btn btn-primary" style="background:linear-gradient(135deg, #10b981, #059669); color:#fff;" onclick="sendTestAlertEmail()">🧪 Send Test Alert Email</button>
+              </div>
+
+              <div class="email-servers-box">
+                <h4>📧 Supported Free Email Server Providers:</h4>
+                <ul>
+                  <li><strong>Brevo (Sendinblue):</strong> Free 300 emails/day via <code>BREVO_API_KEY</code></li>
+                  <li><strong>Resend API:</strong> Free 3,000 emails/month via <code>RESEND_API_KEY</code></li>
+                  <li><strong>Gmail / Standard SMTP:</strong> Free 500 emails/day via <code>SMTP_HOST</code> & App Password</li>
+                  <li><strong>Local HTML Preview:</strong> Generates rendered HTML files under <code>email_previews/</code></li>
+                </ul>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+
+      <!-- TAB 2: API Details & API Keys Portal -->
+      <main class="tab-content" id="tab-api-portal">
+        <div class="portal-grid">
+          <section class="card">
+            <div class="card-header">
+              <h2>Generated API Keys Management</h2>
+              <button class="btn btn-primary" onclick="openCreateKeyModal()">+ Generate New API Key</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Key Name</th>
+                    <th>API Key (X-GriffinOps-API-Key)</th>
+                    <th>Assigned Service</th>
+                    <th>Environment</th>
+                    <th>Requests Total</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="api-keys-table-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Active APIs in Use (Click Endpoint to View Specific AI Illustrations & Telemetry)</h2>
+              <span class="badge badge-amber">Endpoint Monitoring</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>API Endpoint</th>
+                    <th>Target Service</th>
+                    <th>Method</th>
+                    <th>Assigned API Key</th>
+                    <th>RPM (Req/Min)</th>
+                    <th>Avg Latency</th>
+                    <th>Error Rate</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="monitored-apis-table-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- TAB 3: SRE Telemetry & Real Live Website Monitoring -->
+      <main class="tab-content" id="tab-telemetry">
+        <div class="portal-grid" style="margin-bottom:24px;">
+          <!-- Real Live Website Telemetry & Uptime Card -->
+          <section class="card">
+            <div class="card-header">
+              <h2>🌐 Real Live Website Telemetry & Uptime Monitor (Actual Live HTTP pings)</h2>
+              <button class="btn btn-primary" onclick="openAddRealSiteModal()">+ Monitor Custom Live Website</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Live Website / API Target</th>
+                    <th>Live Target URL</th>
+                    <th>Type</th>
+                    <th>Real Latency</th>
+                    <th>HTTP Status</th>
+                    <th>Payload Size</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="real-websites-table-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="card overview-card">
+            <div class="card-header">
+              <h2>Predictive Microservice Telemetry (4 Golden Signals)</h2>
+              <div class="live-pill"><span class="pulse"></span> LIVE 3s STREAM</div>
+            </div>
+            <div class="services-selector" id="services-selector"></div>
+            <div class="chart-container">
+              <canvas id="telemetryChart"></canvas>
+            </div>
+          </section>
+
+          <section class="card forecast-card">
+            <div class="card-header">
+              <h2>PyTorch TCN Forecast (5-10 Min Horizon)</h2>
+              <span class="badge badge-purple">Neural TCN Model</span>
+            </div>
+            <div class="forecast-metrics">
+              <div class="metric-box">
+                <span class="metric-label">Forecast Failure Risk</span>
+                <span class="metric-val" id="forecast-risk-val">0.0%</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Predicted Time-to-Failure</span>
+                <span class="metric-val" id="forecast-ttf-val">HEALTHY</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-label">Highest Risk Service</span>
+                <span class="metric-val svc-tag" id="forecast-svc-val">None</span>
+              </div>
+            </div>
+            <div class="chart-container-sm">
+              <canvas id="forecastChart"></canvas>
+            </div>
+          </section>
+
+          <section class="card topology-card">
+            <div class="card-header">
+              <h2>Microservice Trace Graph</h2>
+              <span class="badge badge-amber">OpenTelemetry Traces</span>
+            </div>
+            <div class="topology-wrapper">
+              <svg id="topology-svg" width="100%" height="240"></svg>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- TAB 4: AI Illustrations & API-Specific Code Suggestions -->
+      <main class="tab-content" id="tab-illustrations">
+        <div class="portal-grid">
+          <section class="card">
+            <div class="card-header">
+              <h2>AI Illustrations & Code Fix Suggestions for Target API: <span id="illustrations-api-tag" style="color:var(--accent-amber);">/api/checkout</span></h2>
+              <span class="badge badge-rose">API Drilldown View</span>
+            </div>
+            
+            <div class="illustrations-layout">
+              <div class="illustration-box">
+                <div class="ill-title">AI Illustration 1: Trace Span Dependency Call Tree</div>
+                <div class="trace-tree-display" id="trace-tree-container"></div>
+              </div>
+
+              <div class="illustration-box">
+                <div class="ill-title">AI Illustration 2: TCN Forecast Confidence Interval ($Z$-Scores)</div>
+                <div style="height:180px;">
+                  <canvas id="illustrationForecastChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+            <div class="ai-suggestions-container" id="api-suggestions-box"></div>
+          </section>
+        </div>
+      </main>
+
+      <!-- TAB 5: Audit Reports & DOCX Architecture Export -->
+      <main class="tab-content" id="tab-reports">
+        <div class="portal-grid">
+          <section class="card audit-card" id="audit-report-card">
+            <div class="card-header">
+              <h2>🦅 Active GriffinOps Pre-Mortem Audit Report & Documentation</h2>
+              <div class="report-actions" style="display:flex; gap:10px;">
+                <button class="btn btn-primary" onclick="downloadPDFReport()">📥 Download PDF Audit Report</button>
+                <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-slate), var(--accent-purple)); color:#fff;" onclick="downloadDOCXDoc()">📄 Download Architectural .DOCX</button>
+              </div>
+            </div>
+            <div class="report-content" id="report-content-body">
+              <div class="placeholder-report"><p>System healthy. Operate the <strong>Standalone Store App</strong> to inject synthetic fault scenarios.</p></div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h2>Automated Background Email Watchdog Dispatch Log (No Click Required)</h2>
+              <span class="badge badge-amber">Automated Background Email Watchdog</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Report ID</th>
+                    <th>Target Microservice</th>
+                    <th>Recipient Developer Email</th>
+                    <th>Status</th>
+                    <th>Preview</th>
+                  </tr>
+                </thead>
+                <tbody id="watchdog-history-table-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Create API Key Modal -->
+    <div class="modal-overlay" id="create-key-modal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🔑 Generate New GriffinOps API Key</h3>
+          <button class="close-btn" onclick="closeCreateKeyModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>API Key Name</label>
+            <input type="text" id="new-key-name" placeholder="e.g., Staging Checkout Key" value="Staging Checkout Key">
+          </div>
+          <div class="form-group">
+            <label>Target Microservice</label>
+            <select id="new-key-svc">
+              <option value="checkoutservice">checkoutservice (/api/checkout)</option>
+              <option value="paymentservice">paymentservice (/api/payment)</option>
+              <option value="cartservice">cartservice (/api/cart)</option>
+              <option value="recommendationservice">recommendationservice (/api/recommendations)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Environment</label>
+            <select id="new-key-env">
+              <option value="production">production</option>
+              <option value="staging">staging</option>
+              <option value="development">development</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeCreateKeyModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitCreateAPIKey()">Generate Key</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monitor Custom Real Website Modal -->
+    <div class="modal-overlay" id="add-real-site-modal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🌐 Monitor Custom Live Website / Real API</h3>
+          <button class="close-btn" onclick="closeAddRealSiteModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Website / Service Name</label>
+            <input type="text" id="real-site-name" placeholder="e.g., Production Payment Gateway" value="My Live Web App">
+          </div>
+          <div class="form-group">
+            <label>Target Live URL (e.g. https://httpbin.org/get or your website)</label>
+            <input type="url" id="real-site-url" placeholder="https://mywebsite.com" value="https://httpbin.org/get">
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="real-site-type">
+              <option value="Live Web App">Live Web App</option>
+              <option value="REST API">REST API</option>
+              <option value="Microservice">Microservice</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeAddRealSiteModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitAddRealSite()">Start Monitoring</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

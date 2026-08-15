@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aegis Cloud Store - Premium AI & Cloud Hardware</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/store/static/store.css">
+</head>
+<body>
+  <div class="store-app">
+    <!-- Store Header -->
+    <header class="store-navbar">
+      <div class="store-brand">
+        <span class="store-logo">🛍️</span>
+        <span class="store-name">Aegis Cloud Store</span>
+      </div>
+      <nav class="store-nav">
+        <a href="#products">Hardware</a>
+        <a href="#solutions">AI Copilots</a>
+        <a href="#enterprise">Enterprise</a>
+      </nav>
+      <div class="store-cart-btn" onclick="openCart()">
+        🛒 Cart <span class="cart-badge" id="cart-count">0</span>
+      </div>
+    </header>
+
+    <!-- Store Hero -->
+    <section class="store-hero">
+      <div class="hero-text">
+        <span class="hero-tag">SEASON 2026 RELEASE</span>
+        <h1>Next-Gen Cloud Hardware & AI SRE Licenses</h1>
+        <p>Equip your data science team with high-throughput OpenTelemetry sensors, PyTorch accelerator nodes, and enterprise observability suites.</p>
+        <a href="#products" class="btn-shop">Explore Catalog</a>
+      </div>
+    </section>
+
+    <!-- Product Grid -->
+    <main class="store-main" id="products">
+      <h2 class="section-title">Featured Infrastructure & Software</h2>
+      <div class="products-grid" id="products-container">
+        <!-- Populated via JS -->
+      </div>
+    </main>
+
+    <!-- Shopping Cart Modal -->
+    <div class="modal-overlay" id="cart-modal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>🛒 Shopping Cart</h3>
+          <button class="close-btn" onclick="closeCart()">&times;</button>
+        </div>
+        <div class="modal-body" id="cart-body">
+          <p class="empty-msg">Your shopping cart is empty.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeCart()">Continue Shopping</button>
+          <button class="btn-primary" onclick="proceedToCheckout()">Proceed to Checkout ($<span id="cart-total">0.00</span>)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div class="modal-overlay" id="checkout-modal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>💳 Secure Checkout (`/api/checkout` & `/api/payment`)</h3>
+          <button class="close-btn" onclick="closeCheckout()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Customer Name</label>
+            <input type="text" id="chk-name" value="SRE Lead Engineer">
+          </div>
+          <div class="form-group">
+            <label>Payment Card (Simulated)</label>
+            <input type="text" id="chk-card" value="4532 •••• •••• 8892">
+          </div>
+          <div class="checkout-status" id="checkout-status-msg"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeCheckout()">Cancel</button>
+          <button class="btn-primary" id="btn-pay-now" onclick="executePayment()">Pay Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating SRE Chaos Engineering Control Bar -->
+    <aside class="chaos-toolbar">
+      <div class="chaos-header">
+        <span>⚡ SRE Fault Injector</span>
+        <span class="chaos-sub">Simulates Live Site Microservice Outages</span>
+      </div>
+      <div class="chaos-actions">
+        <button class="chaos-btn danger" onclick="injectStoreFault('CHECKOUT_LATENCY_CASCADE')">Checkout DB Delay</button>
+        <button class="chaos-btn warning" onclick="injectStoreFault('PAYMENT_CPU_SATURATION')">Payment CPU Lock</button>
+        <button class="chaos-btn purple" onclick="injectStoreFault('RECOMMENDATION_MEMORY_LEAK')">Rec Memory Leak</button>
+        <button class="chaos-btn amber" onclick="injectStoreFault('CART_REDIS_ERROR_STORM')">Cart Error Storm</button>
+        <button class="chaos-btn reset" onclick="resetStoreFault()">Reset Baseline</button>
+      </div>
+    </aside>
+
+    <div id="store-toast" class="store-toast"></div>
+  </div>
+
+  <script src="/store/static/store.js"></script>
+</body>
+</html>

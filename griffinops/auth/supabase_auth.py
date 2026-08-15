@@ -1,0 +1,153 @@
+import os
+import time
+import requests
+import hashlib
+import uuid
+from typing import Optional, Dict
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+
+# In-memory user & session store for local zero-config fallback
+LOCAL_USERS_DB: Dict[str, dict] = {
+    "admin@griffinops.io": {
+        "user_id": "usr_admin001",
+        "email": "admin@griffinops.io",
+        "name": "SRE Lead Engineer",
+        "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
+        "role": "CHIEF SRE ARCHITECT"
+    }
+}
+LOCAL_SESSIONS: Dict[str, dict] = {}
+
+class SupabaseAuthEngine:
+    """
+    Handles User Registration, Login, and JWT Session Tokens via Supabase Auth API,
+    with local zero-config fallback mode.
+    """
+    def __init__(self):
+        self.supabase_url = SUPABASE_URL.rstrip("/")
+        self.supabase_key = SUPABASE_KEY
+        self.is_supabase_configured = bool(self.supabase_url and self.supabase_key)
+
+    def register(self, email: str, password: str, name: str) -> dict:
+        if self.is_supabase_configured:
+            url = f"{self.supabase_url}/auth/v1/signup"
+            headers = {"apikey": self.supabase_key, "Content-Type": "application/json"}
+            payload = {
+                "email": email,
+                "password": password,
+                "data": {"name": name, "role": "DEVELOPER"}
+            }
+            try:
+                resp = requests.post(url, json=payload, headers=headers, timeout=5.0)
+                if resp.status_code in [200, 201]:
+                    data = resp.json()
+                    user_data = data.get("user", {})
+                    return {
+                        "status": "SUCCESS",
+                        "mode": "SUPABASE",
+                        "user": {
+                            "user_id": user_data.get("id"),
+                            "email": email,
+                            "name": name,
+                            "role": "DEVELOPER"
+                        }
+                    }
+                else:
+                    err_msg = resp.json().get("msg") or resp.json().get("error_description") or "Supabase signup error"
+                    raise ValueError(err_msg)
+            except Exception as e:
+                if "already registered" in str(e).lower() or "error" in str(e).lower():
+                    raise ValueError(str(e))
+        
+        # Local fallback registration
+        if email in LOCAL_USERS_DB:
+            raise ValueError(f"User with email '{email}' already exists.")
+            
+        user_id = f"usr_{uuid.uuid4().hex[:8]}"
+        user = {
+            "user_id": user_id,
+            "email": email,
+            "name": name,
+            "password_hash": hashlib.sha256(password.encode()).hexdigest(),
+            "role": "DEVELOPER"
+        }
+        LOCAL_USERS_DB[email] = user
+        return {"status": "SUCCESS", "mode": "LOCAL_DB", "user": {"user_id": user_id, "email": email, "name": name, "role": "DEVELOPER"}}
+
+    def login(self, email: str, password: str) -> dict:
+        if self.is_supabase_configured:
+            url = f"{self.supabase_url}/auth/v1/token?grant_type=password"
+            headers = {"apikey": self.supabase_key, "Content-Type": "application/json"}
+            payload = {"email": email, "password": password}
+            try:
+                resp = requests.post(url, json=payload, headers=headers, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    token = data.get("access_token")
+                    user_data = data.get("user", {})
+                    return {
+                        "access_token": token,
+                        "token_type": "bearer",
+                        "mode": "SUPABASE",
+                        "user": {
+                            "user_id": user_data.get("id"),
+                            "email": user_data.get("email"),
+                            "name": user_data.get("user_metadata", {}).get("name", email.split("@")[0]),
+                            "role": user_data.get("user_metadata", {}).get("role", "DEVELOPER")
+                        }
+                    }
+                else:
+                    raise ValueError("Invalid email or password.")
+            except Exception:
+                pass
+        
+        # Local fallback login
+        user = LOCAL_USERS_DB.get(email)
+        if not user or hashlib.sha256(password.encode()).hexdigest() != user["password_hash"]:
+            raise ValueError("Invalid email or password.")
+            
+        token = f"gop_sess_{uuid.uuid4().hex}"
+        LOCAL_SESSIONS[token] = {
+            "user_id": user["user_id"],
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "created_at": time.time()
+        }
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "mode": "LOCAL_DB",
+            "user": {
+                "user_id": user["user_id"],
+                "email": user["email"],
+                "name": user["name"],
+                "role": user["role"]
+            }
+        }
+
+    def verify_token(self, token: str) -> Optional[dict]:
+        if not token:
+            return None
+        if token.startswith("Bearer "):
+            token = token.split(" ")[1]
+            
+        if self.is_supabase_configured:
+            url = f"{self.supabase_url}/auth/v1/user"
+            headers = {"apikey": self.supabase_key, "Authorization": f"Bearer {token}"}
+            try:
+                resp = requests.get(url, headers=headers, timeout=3.0)
+                if resp.status_code == 200:
+                    u = resp.json()
+                    return {
+                        "user_id": u.get("id"),
+                        "email": u.get("email"),
+                        "name": u.get("user_metadata", {}).get("name", u.get("email")),
+                        "role": "DEVELOPER"
+                    }
+            except Exception:
+                pass
+                
+        return LOCAL_SESSIONS.get(token)
