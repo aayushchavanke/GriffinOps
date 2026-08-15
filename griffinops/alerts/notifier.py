@@ -392,7 +392,7 @@ class DualNotifier:
                 brevo_url = "https://api.brevo.com/v3/smtp/email"
                 headers = {"api-key": self.brevo_api_key, "Content-Type": "application/json"}
                 payload = {
-                    "sender": {"name": "GriffinOps AI SRE Alert", "email": recipient_email if "@" in recipient_email else "alerts@griffinops.io"},
+                    "sender": {"name": "GriffinOps Autonomous AI SRE", "email": "alerts@griffinops.io"},
                     "to": [{"email": recipient_email}],
                     "subject": subject,
                     "htmlContent": html_body
@@ -403,7 +403,8 @@ class DualNotifier:
                         "status": "DELIVERED",
                         "recipient": recipient_email,
                         "provider": "BREVO_API",
-                        "message": f"Email successfully delivered to {recipient_email} via Brevo API!",
+                        "sender": "GriffinOps AI SRE Copilot <alerts@griffinops.io>",
+                        "message": f"Email successfully delivered to {recipient_email} from alerts@griffinops.io via Brevo API!",
                         "preview_path": filepath
                     }
                 else:
@@ -417,7 +418,7 @@ class DualNotifier:
                 resend_url = "https://api.resend.com/emails"
                 headers = {"Authorization": f"Bearer {self.resend_api_key}", "Content-Type": "application/json"}
                 payload = {
-                    "from": "onboarding@resend.dev",
+                    "from": "GriffinOps AI SRE <alerts@griffinops.io>",
                     "to": [recipient_email],
                     "subject": subject,
                     "html": html_body
@@ -428,7 +429,8 @@ class DualNotifier:
                         "status": "DELIVERED",
                         "recipient": recipient_email,
                         "provider": "RESEND_API",
-                        "message": f"Email successfully delivered to {recipient_email} via Resend API!",
+                        "sender": "GriffinOps AI SRE Copilot <alerts@griffinops.io>",
+                        "message": f"Email successfully delivered to {recipient_email} from alerts@griffinops.io via Resend API!",
                         "preview_path": filepath
                     }
                 else:
@@ -441,7 +443,7 @@ class DualNotifier:
             try:
                 msg = MIMEMultipart("alternative")
                 msg["Subject"] = subject
-                msg["From"] = self.smtp_user
+                msg["From"] = f"GriffinOps AI SRE Copilot <{self.smtp_user}>"
                 msg["To"] = recipient_email
                 msg.attach(MIMEText(html_body, "html"))
                 
@@ -459,7 +461,8 @@ class DualNotifier:
                     "status": "DELIVERED",
                     "recipient": recipient_email,
                     "provider": f"SMTP ({self.smtp_host})",
-                    "message": f"Email successfully delivered to {recipient_email} via SMTP server ({self.smtp_host})!",
+                    "sender": f"GriffinOps AI SRE Copilot <{self.smtp_user}>",
+                    "message": f"Email successfully delivered to {recipient_email} from GriffinOps AI SRE Copilot!",
                     "preview_path": filepath
                 }
             except Exception as e:
