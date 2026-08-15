@@ -229,6 +229,18 @@ async function fetchUserProfile() {
       const p = await resp.json();
       document.getElementById("pref-dev-emails").value = p.developer_emails ? p.developer_emails.join(", ") : "";
       document.getElementById("pref-alerts-enabled").checked = p.email_alerts_enabled;
+
+      const config = p.email_config || {};
+      if (document.getElementById("smtp-host-input")) document.getElementById("smtp-host-input").value = config.smtp_host || "";
+      if (document.getElementById("smtp-port-input")) document.getElementById("smtp-port-input").value = config.smtp_port || 587;
+      if (document.getElementById("smtp-user-input")) document.getElementById("smtp-user-input").value = config.smtp_user || "";
+
+      const badge = document.getElementById("email-config-status-badge");
+      if (badge) {
+        const isReal = config.active_provider && config.active_provider !== "LOCAL_HTML_PREVIEW";
+        badge.innerText = `Active Provider: ${config.active_provider || 'LOCAL_HTML_PREVIEW'}`;
+        badge.className = isReal ? "badge badge-purple" : "badge badge-amber";
+      }
     }
   } catch (err) {}
 }
@@ -258,12 +270,44 @@ async function saveProfileSettings() {
   }
 }
 
+async function saveEmailCredentials() {
+  const smtpHost = document.getElementById("smtp-host-input").value.trim();
+  const smtpPort = parseInt(document.getElementById("smtp-port-input").value) || 587;
+  const smtpUser = document.getElementById("smtp-user-input").value.trim();
+  const smtpPass = document.getElementById("smtp-pass-input").value.trim();
+  const brevoKey = document.getElementById("brevo-key-input").value.trim();
+  const resendKey = document.getElementById("resend-key-input").value.trim();
+
+  showToast("💾 Saving email credentials & activating server...");
+  try {
+    const resp = await fetch("/api/v1/user/email-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        smtp_host: smtpHost || null,
+        smtp_port: smtpPort,
+        smtp_user: smtpUser || null,
+        smtp_pass: smtpPass || null,
+        brevo_api_key: brevoKey || null,
+        resend_api_key: resendKey || null
+      })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      showToast(`✅ ${data.message}`);
+      fetchUserProfile();
+    }
+  } catch (err) {
+    showToast("Error saving email credentials.");
+  }
+}
+
 async function sendTestAlertEmail() {
   const emailsRaw = document.getElementById("pref-dev-emails").value;
   const emails = emailsRaw.split(",").map(e => e.trim()).filter(e => e.length > 0);
   const targetEmail = emails[0] || "sre-dev@sies.edu";
 
-  showToast(`📧 Sending test alert email to ${targetEmail}...`);
+  showToast(`📧 Dispatching test alert email to ${targetEmail}...`);
   try {
     const resp = await fetch("/api/v1/alerts/email", {
       method: "POST",
@@ -272,7 +316,11 @@ async function sendTestAlertEmail() {
     });
     if (resp.ok) {
       const res = await resp.json();
-      showToast(`✅ Alert Email Sent! Provider: ${res.provider}`);
+      if (res.status === "DELIVERED") {
+        showToast(`🎉 DELIVERED! Email alert sent to ${targetEmail} via ${res.provider}! Check your inbox!`);
+      } else {
+        showToast(`⚠️ Stored in local preview folder (no SMTP key configured). Enter your Gmail/SMTP credentials below to receive emails directly in your inbox!`);
+      }
       fetchWatchdogHistory();
     }
   } catch (err) {

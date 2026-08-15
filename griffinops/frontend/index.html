@@ -165,14 +165,60 @@
                 <button class="btn btn-primary" style="background:linear-gradient(135deg, #10b981, #059669); color:#fff;" onclick="sendTestAlertEmail()">🧪 Send Test Alert Email</button>
               </div>
 
-              <div class="email-servers-box">
-                <h4>📧 Supported Free Email Server Providers:</h4>
-                <ul>
-                  <li><strong>Brevo (Sendinblue):</strong> Free 300 emails/day via <code>BREVO_API_KEY</code></li>
-                  <li><strong>Resend API:</strong> Free 3,000 emails/month via <code>RESEND_API_KEY</code></li>
-                  <li><strong>Gmail / Standard SMTP:</strong> Free 500 emails/day via <code>SMTP_HOST</code> & App Password</li>
-                  <li><strong>Local HTML Preview:</strong> Generates rendered HTML files under <code>email_previews/</code></li>
-                </ul>
+              <div class="email-servers-box" style="margin-top:20px; background:rgba(30,41,59,0.6); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:20px;">
+                <div style="display:flex; justify-space-between; align-items:center; margin-bottom:12px;">
+                  <h4 style="color:var(--accent-amber); margin:0; font-size:15px; font-weight:800;">⚙️ Real Email Delivery Credentials & SMTP Server Setup:</h4>
+                  <span id="email-config-status-badge" class="badge badge-amber" style="font-size:11px;">Active: LOCAL PREVIEW</span>
+                </div>
+                <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px; line-height:1.5;">
+                  By default, alerts without API keys or SMTP passwords are saved as HTML previews in <code>email_previews/</code>. 
+                  To receive <strong>real alert emails directly in your Gmail or personal inbox</strong>, enter your SMTP server credentials or Brevo API key below:
+                </p>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:11px; color:#94a3b8;">SMTP Host (e.g., smtp.gmail.com):</label>
+                    <input type="text" id="smtp-host-input" placeholder="smtp.gmail.com">
+                  </div>
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:11px; color:#94a3b8;">SMTP Port (587 TLS / 465 SSL):</label>
+                    <input type="number" id="smtp-port-input" placeholder="587" value="587">
+                  </div>
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:11px; color:#94a3b8;">SMTP Email Username / Sender:</label>
+                    <input type="email" id="smtp-user-input" placeholder="your-email@gmail.com">
+                  </div>
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:11px; color:#94a3b8;">SMTP Password / Gmail App Password:</label>
+                    <input type="password" id="smtp-pass-input" placeholder="16-character App Password">
+                  </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:11px; color:#94a3b8;">Brevo (Sendinblue) API Key (Free 300/day):</label>
+                    <input type="text" id="brevo-key-input" placeholder="xkeysib-...">
+                  </div>
+                  <div class="form-group" style="margin:0;">
+                    <label style="font-size:11px; color:#94a3b8;">Resend API Key (Free 3,000/month):</label>
+                    <input type="text" id="resend-key-input" placeholder="re_...">
+                  </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <button class="btn btn-primary" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:#000; font-weight:800;" onclick="saveEmailCredentials()">💾 Save & Activate Real Email Server</button>
+                </div>
+
+                <details style="margin-top:16px; background:#0b0f19; padding:12px; border-radius:8px; font-size:12px; color:#94a3b8;">
+                  <summary style="cursor:pointer; color:var(--accent-cyan); font-weight:bold;">💡 Quick Guide: How to receive real emails in your Gmail inbox (30 Seconds Setup)</summary>
+                  <ol style="margin:10px 0 0 18px; padding:0; line-height:1.7;">
+                    <li>Open your Google Account > <strong>Security</strong> > Enable <strong>2-Step Verification</strong>.</li>
+                    <li>Search for <strong>"App Passwords"</strong> in the top search bar of Google Account.</li>
+                    <li>Generate a new App Password named <code>GriffinOps</code> and paste the 16-letter password above into <strong>SMTP Password</strong>.</li>
+                    <li>Set <strong>SMTP Host</strong> to <code>smtp.gmail.com</code>, <strong>SMTP Port</strong> to <code>587</code>, and enter your Gmail address.</li>
+                    <li>Click <strong>Save & Activate Real Email Server</strong> and then click <strong>🧪 Send Test Alert Email</strong>!</li>
+                  </ol>
+                </details>
               </div>
             </section>
           </div>

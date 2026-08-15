@@ -101,8 +101,17 @@ def get_me(authorization: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Unauthorized session.")
     return user
 
+class EmailConfigRequest(BaseModel):
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = 587
+    smtp_user: Optional[str] = None
+    smtp_pass: Optional[str] = None
+    brevo_api_key: Optional[str] = None
+    resend_api_key: Optional[str] = None
+
 @router.get("/user/profile")
 def get_user_profile():
+    email_status = notifier.get_config_status() if notifier else {}
     return {
         "user_id": "usr_admin001",
         "email": "admin@griffinops.io",
@@ -111,7 +120,8 @@ def get_user_profile():
         "organization": "SIES GST AI & Data Science Team",
         "email_alerts_enabled": True,
         "developer_emails": watchdog.registered_developer_emails if watchdog else ["sre-dev@sies.edu"],
-        "assigned_services_count": 6
+        "assigned_services_count": 6,
+        "email_config": email_status
     }
 
 @router.put("/user/profile")
@@ -119,6 +129,53 @@ def update_user_profile(req: ProfileUpdateRequest):
     if watchdog:
         watchdog.registered_developer_emails = req.developer_emails
     return {"status": "SUCCESS", "message": "User profile & automated email notification settings updated."}
+
+@router.get("/user/email-config")
+def get_email_config():
+    if not notifier:
+        return {}
+    return notifier.get_config_status()
+
+@router.post("/user/email-config")
+def update_email_config(req: EmailConfigRequest):
+    if notifier:
+        notifier.update_credentials(
+            smtp_host=req.smtp_host,
+            smtp_port=req.smtp_port or 587,
+            smtp_user=req.smtp_user,
+            smtp_pass=req.smtp_pass,
+            brevo_api_key=req.brevo_api_key,
+            resend_api_key=req.resend_api_key
+        )
+    
+    # Save credentials into .env for persistence across restarts
+    env_path = os.path.join(os.getcwd(), ".env")
+    env_vars = {}
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env_vars[k.strip()] = v.strip()
+    
+    if req.smtp_host: env_vars["SMTP_HOST"] = req.smtp_host
+    if req.smtp_port: env_vars["SMTP_PORT"] = str(req.smtp_port)
+    if req.smtp_user: env_vars["SMTP_USER"] = req.smtp_user
+    if req.smtp_pass: env_vars["SMTP_PASS"] = req.smtp_pass
+    if req.brevo_api_key: env_vars["BREVO_API_KEY"] = req.brevo_api_key
+    if req.resend_api_key: env_vars["RESEND_API_KEY"] = req.resend_api_key
+
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.write("# GriffinOps Environment Configuration\n")
+        for k, v in env_vars.items():
+            f.write(f"{k}={v}\n")
+
+    return {
+        "status": "SUCCESS",
+        "message": "Email server credentials updated and saved to .env file!",
+        "config": notifier.get_config_status() if notifier else {}
+    }
 
 # --- API KEY MANAGEMENT & MONITORED APIS ---
 @router.get("/keys")
