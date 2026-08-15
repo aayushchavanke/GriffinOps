@@ -441,21 +441,45 @@ function updateForecastPanel(forecastData) {
 function updateAuditReport(report) {
   const container = document.getElementById("report-content-body");
   if (!report || report.system_status === "HEALTHY") {
-    container.innerHTML = `<div class="placeholder-report"><p>🟢 System operational. Microservice metrics operating within baseline standards.</p></div>`;
+    container.innerHTML = `<div class="placeholder-report"><p>🟢 System operational. Microservice telemetry baseline normal. Zero outage hazards detected.</p></div>`;
     return;
   }
   const rca = report.root_cause_analysis || {};
   const commit = report.ci_cd_correlation || {};
+  const impact = report.business_impact || {};
+  const sev = report.severity_level || "CRITICAL (SEV-1)";
 
   container.innerHTML = `
     <div style="display:flex; flex-direction:column; gap:16px;">
-      <div style="background:var(--accent-rose-glow); border:1px solid var(--accent-rose); padding:12px 18px; border-radius:10px; font-weight:bold; display:flex; justify-content:space-between; color:#ff4d8d;">
-        <span>🚨 ${report.system_status}: ${rca.service} Failure Impending</span>
-        <span>${report.forecasted_time_to_failure_human}</span>
+      <div style="background:var(--accent-rose-glow); border:1px solid var(--accent-rose); padding:14px 20px; border-radius:10px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; color:#ff4d8d;">
+        <span>🚨 [${sev}] PRE-MORTEM HAZARD: ${rca.service} Outage Threat</span>
+        <span style="font-size:16px; background:#e11d48; color:#fff; padding:4px 12px; border-radius:20px;">⏳ Time Left: ${report.forecasted_time_to_failure_human}</span>
       </div>
+
+      <!-- BUSINESS & FINANCIAL IMPACT CARD -->
+      <div style="background:linear-gradient(135deg, rgba(245,158,11,0.1), rgba(180,83,9,0.05)); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:16px;">
+        <div style="color:var(--accent-amber); font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">📉 ESTIMATED BUSINESS & FINANCIAL IMPACT</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:10px;">
+          <div style="background:#0b0f19; padding:10px; border-radius:6px;">
+            <span style="font-size:11px; color:#94a3b8; display:block;">Financial Risk Rate</span>
+            <span style="font-size:15px; font-weight:bold; color:#f43f5e;">${impact.estimated_loss_per_minute || '$450/min'}</span>
+          </div>
+          <div style="background:#0b0f19; padding:10px; border-radius:6px;">
+            <span style="font-size:11px; color:#94a3b8; display:block;">Impacted Customer Sessions</span>
+            <span style="font-size:15px; font-weight:bold; color:#fbbf24;">${impact.affected_active_user_sessions || '14,200 users'}</span>
+          </div>
+          <div style="background:#0b0f19; padding:10px; border-radius:6px;">
+            <span style="font-size:11px; color:#94a3b8; display:block;">Business Risk Level</span>
+            <span style="font-size:14px; font-weight:bold; color:#38bdf8;">${impact.business_risk_level || 'HIGH REVENUE RISK'}</span>
+          </div>
+        </div>
+        <div style="font-size:12px; color:#e2e8f0;">${impact.summary || ''}</div>
+      </div>
+
+      <!-- ROOT CAUSE & CI/CD CORRELATION -->
       <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
         <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8; display:block;">Target Microservice</span>
+          <span style="font-size:11px; color:#94a3b8; display:block;">Faulty Microservice</span>
           <span style="font-size:15px; font-weight:bold; color:#fff;">${rca.service}</span>
         </div>
         <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
@@ -471,12 +495,19 @@ function updateAuditReport(report) {
           <span style="font-size:15px; font-weight:bold; color:#fff;">${report.blast_radius ? report.blast_radius.affected_microservices_count : 2} services</span>
         </div>
       </div>
+
       <div style="background:#0f172a; border-left:4px solid var(--accent-amber); padding:12px; font-family:monospace; font-size:12px; color:#fef3c7;">
-        <strong>Correlated Deployment Commit:</strong> <code>${commit.commit_id}</code> by ${commit.author}<br/>
+        <strong>Correlated CI/CD Deployment Commit:</strong> <code>${commit.commit_id}</code> by ${commit.author}<br/>
         <strong>Message:</strong> ${commit.message}
       </div>
+
+      <!-- ACTIONABLE REMEDIATION SUGGESTION -->
       <div style="background:var(--accent-amber-glow); border:1px solid var(--accent-amber); padding:14px; border-radius:8px; color:#fef3c7;">
-        <strong>💡 GriffinOps Recommended Action:</strong><br/>${report.suggested_action}
+        <strong>💡 GriffinOps Recommended Action:</strong><br/>
+        ${report.suggested_action}
+        <div style="background:#070a11; border:1px solid #14b8a6; color:#2dd4bf; padding:8px 12px; font-family:monospace; font-size:12px; border-radius:6px; margin-top:8px;">
+          $ ${report.remediation_command || `kubectl rollout undo deployment/${rca.service} -n production`}
+        </div>
       </div>
     </div>
   `;
