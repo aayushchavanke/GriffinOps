@@ -67,7 +67,7 @@ def get_real_website_telemetry():
 def add_real_website(req: AddRealSiteRequest):
     return real_website_monitor.add_monitored_site(name=req.name, url=req.url, site_type=req.site_type)
 
-# --- DETAILED DOCX DOCUMENTATION DOWNLOAD ---
+# --- DETAILED DOCX DOCUMENTATION DOWNLOAD & DIAGRAMS ---
 @router.get("/docs/architecture.docx")
 def download_docx_architecture_doc():
     filepath = docx_generator.generate_docx()
@@ -76,6 +76,25 @@ def download_docx_architecture_doc():
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         filename="GriffinOps_System_Architecture_and_Engineering_Doc.docx"
     )
+
+@router.get("/docs/project-report.docx")
+def download_docx_project_report():
+    diagram_paths = docx_generator.generate_all_wireframe_diagrams()
+    filepath = docx_generator.generate_project_report_docx(diagram_paths)
+    return FileResponse(
+        filepath,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename="GriffinOps_Project_Report.docx"
+    )
+
+@router.get("/docs/diagrams/{filename}")
+def get_diagram_file(filename: str):
+    diagram_paths = docx_generator.generate_all_wireframe_diagrams()
+    filepath = os.path.join(docx_generator.output_dir, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Diagram not found")
+    return FileResponse(filepath, media_type="image/png")
+
 
 # --- AUTHENTICATION & USER PROFILE ---
 @router.post("/auth/login")

@@ -393,9 +393,10 @@
           <section class="card audit-card" id="audit-report-card">
             <div class="card-header">
               <h2>🦅 Active GriffinOps Pre-Mortem Audit Report & Documentation</h2>
-              <div class="report-actions" style="display:flex; gap:10px;">
+              <div class="report-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn btn-primary" onclick="downloadPDFReport()">📥 Download PDF Audit Report</button>
-                <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-slate), var(--accent-purple)); color:#fff;" onclick="downloadDOCXDoc()">📄 Download Architectural .DOCX</button>
+                <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-slate), var(--accent-purple)); color:#fff;" onclick="downloadDOCXDoc()">📄 Download Architecture .DOCX</button>
+                <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-amber), #b45309); color:#fff;" onclick="downloadProjectReport()">📜 Download Academic Project Report (.DOCX)</button>
               </div>
             </div>
             <div class="report-content" id="report-content-body">

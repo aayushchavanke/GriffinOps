@@ -732,6 +732,11 @@ function downloadDOCXDoc() {
   showToast("📄 Downloading Architectural .DOCX Document...");
 }
 
+function downloadProjectReport() {
+  window.open("/api/v1/docs/project-report.docx", "_blank");
+  showToast("📜 Downloading Academic Project Report (.DOCX)...");
+}
+
 async function fetchTopology() {
   try {
     const resp = await fetch("/api/v1/topology");
