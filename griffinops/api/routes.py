@@ -45,7 +45,14 @@ class ProfileUpdateRequest(BaseModel):
 class CreateAPIKeyRequest(BaseModel):
     name: str
     environment: Optional[str] = "production"
-    assigned_service: Optional[str] = "checkoutservice"
+    target_url: Optional[str] = "https://httpbin.org/get"
+
+class IngestTelemetryRequest(BaseModel):
+    api_key: str
+    latency_ms: float
+    status_code: int = 200
+    payload_bytes: int = 256
+    endpoint: str = "/api/v1/resource"
 
 class AddRealSiteRequest(BaseModel):
     name: str
@@ -67,24 +74,15 @@ def get_real_website_telemetry():
 def add_real_website(req: AddRealSiteRequest):
     return real_website_monitor.add_monitored_site(name=req.name, url=req.url, site_type=req.site_type)
 
-# --- DETAILED DOCX DOCUMENTATION DOWNLOAD & DIAGRAMS ---
+# --- MASTER DOCX DOCUMENTATION DOWNLOAD & DIAGRAMS ---
 @router.get("/docs/architecture.docx")
-def download_docx_architecture_doc():
+@router.get("/docs/project-report.docx")
+def download_docx_project_report():
     filepath = docx_generator.generate_docx()
     return FileResponse(
         filepath,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename="GriffinOps_System_Architecture_and_Engineering_Doc.docx"
-    )
-
-@router.get("/docs/project-report.docx")
-def download_docx_project_report():
-    diagram_paths = docx_generator.generate_all_wireframe_diagrams()
-    filepath = docx_generator.generate_project_report_docx(diagram_paths)
-    return FileResponse(
-        filepath,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename="GriffinOps_Project_Report.docx"
+        filename="GriffinOps_Master_Project_Report.docx"
     )
 
 @router.get("/docs/diagrams/{filename}")
@@ -133,15 +131,23 @@ def get_user_profile():
     email_status = notifier.get_config_status() if notifier else {}
     return {
         "user_id": "usr_admin001",
-        "email": "admin@griffinops.io",
+        "email": "griffinops26@gmail.com",
         "name": "SRE Lead Engineer",
         "role": "CHIEF SRE ARCHITECT",
         "organization": "SIES GST AI & Data Science Team",
         "email_alerts_enabled": True,
-        "developer_emails": watchdog.registered_developer_emails if watchdog else ["sre-dev@sies.edu"],
+        "developer_emails": watchdog.registered_developer_emails if watchdog else ["griffinops26@gmail.com", "sre-dev@sies.edu"],
         "assigned_services_count": 6,
         "email_config": email_status
     }
+
+@router.get("/email-previews/{filename}")
+def serve_email_preview(filename: str):
+    preview_dir = os.path.join(os.getcwd(), "email_previews")
+    filepath = os.path.join(preview_dir, filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="Email preview file not found.")
+    return FileResponse(filepath, media_type="text/html")
 
 @router.put("/user/profile")
 def update_user_profile(req: ProfileUpdateRequest):
@@ -203,7 +209,37 @@ def list_api_keys():
 
 @router.post("/keys/create")
 def create_api_key(req: CreateAPIKeyRequest):
-    return api_key_manager.generate_api_key(name=req.name, environment=req.environment, assigned_service=req.assigned_service)
+    new_key = api_key_manager.generate_api_key(name=req.name, environment=req.environment, target_url=req.target_url)
+    # Register target URL with real website monitor for live pings
+    if req.target_url and real_website_monitor:
+        real_website_monitor.add_monitored_site(name=req.name, url=req.target_url, site_type="User API Key Target")
+    return new_key
+
+@router.post("/telemetry/ingest")
+def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
+    info = api_key_manager.validate_api_key(req.api_key)
+    if not info:
+        raise HTTPException(status_code=401, detail="Invalid or revoked X-GriffinOps-API-Key.")
+    
+    # Store live SDK telemetry ping
+    target_url = info.get("target_url", f"https://hosted-app.internal{req.endpoint}")
+    if real_website_monitor:
+        if target_url not in real_website_monitor.history:
+            real_website_monitor.add_monitored_site(name=info["name"], url=target_url, site_type="SDK Telemetry Stream")
+        
+        now = time.time()
+        dp = {
+            "timestamp": now,
+            "latency_ms": req.latency_ms,
+            "status_code": req.status_code,
+            "payload_bytes": req.payload_bytes,
+            "error_rate": 0.0 if req.status_code < 400 else 1.0,
+            "cpu_percent": round(min(100.0, req.latency_ms / 20.0), 2),
+            "memory_percent": 45.0
+        }
+        real_website_monitor.history[target_url].append(dp)
+    
+    return {"status": "INGESTED", "api_key": req.api_key, "recorded_latency_ms": req.latency_ms}
 
 @router.delete("/keys/{key_id}")
 def revoke_api_key(key_id: str):
@@ -240,7 +276,7 @@ def get_live_telemetry():
     z_scores = normalizer.compute_z_scores(telemetry)
     
     result = {}
-    for svc in telemetry_ingestor.services:
+    for svc in telemetry.keys():
         raw_df = telemetry[svc]
         z_df = z_scores[svc]
         result[svc] = {
@@ -255,8 +291,8 @@ def get_tcn_forecast():
     active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
     telemetry = telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
     z_scores = normalizer.compute_z_scores(telemetry)
-    tensor = normalizer.to_tensor_format(z_scores, sequence_length=30)
-    return tcn_predictor.predict(tensor)
+    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=30)
+    return tcn_predictor.predict(tensor, service_names=service_names)
 
 @router.get("/topology")
 def get_topology():
@@ -292,8 +328,6 @@ def get_fault_status():
 @router.post("/fault/inject")
 def inject_fault(req: FaultInjectRequest):
     res = fault_simulator.inject_fault(req.scenario_key)
-    if dummy_app:
-        dummy_app.set_fault(res.get("active_fault"))
     if watchdog:
         watchdog.last_alert_time = 0 # Force zero cooldown so email dispatches immediately
         watchdog._evaluate_and_dispatch()
@@ -302,8 +336,6 @@ def inject_fault(req: FaultInjectRequest):
 @router.post("/fault/reset")
 def reset_fault():
     res = fault_simulator.reset_fault()
-    if dummy_app:
-        dummy_app.set_fault(None)
     return res
 
 @router.get("/audit-reports/latest")
@@ -311,9 +343,9 @@ def get_latest_audit_report():
     active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
     telemetry = telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
     z_scores = normalizer.compute_z_scores(telemetry)
-    tensor = normalizer.to_tensor_format(z_scores, sequence_length=30)
+    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=30)
     
-    tcn_results = tcn_predictor.predict(tensor)
+    tcn_results = tcn_predictor.predict(tensor, service_names=service_names)
     report = rca_engine.analyze_root_cause(tcn_results, z_scores, active_fault=active_fault)
     return report
 

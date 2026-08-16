@@ -118,47 +118,51 @@ class TCNPredictorEngine:
             except Exception:
                 pass
 
-    def predict(self, input_tensor: torch.Tensor, z_threshold: float = 2.5) -> dict:
+    def predict(self, input_tensor: torch.Tensor, service_names: Optional[List[str]] = None, z_threshold: float = 2.5) -> dict:
         """
-        Runs multi-step forecasting for each microservice tensor.
+        Runs multi-step forecasting for each active microservice / API target tensor.
         input_tensor: [Num_Services, Num_Features, Sequence_Length]
         """
-        self.model.eval()
-        with torch.no_grad():
-            forecasts, failure_probs = self.model(input_tensor)
-            
-        # forecasts shape: [Num_Services, 5, 10]
-        # failure_probs shape: [Num_Services, 1]
-        forecasts_np = forecasts.numpy()
-        failure_probs_np = failure_probs.numpy().flatten()
-        
         results = {
             "services": {},
             "highest_risk_service": None,
             "max_failure_prob": 0.0,
             "system_anomaly_detected": False
         }
-        
-        from griffinops.telemetry.ingestion import MICROSERVICES, SIGNALS
-        
+
+        if input_tensor is None or input_tensor.size(0) == 0 or not service_names:
+            return results
+
+        self.model.eval()
+        with torch.no_grad():
+            forecasts, failure_probs = self.model(input_tensor)
+            
+        forecasts_np = forecasts.numpy()
+        failure_probs_np = failure_probs.numpy().flatten()
+
+        from griffinops.telemetry.ingestion import SIGNALS
+
         max_prob = 0.0
         risk_svc = None
 
-        for idx, svc in enumerate(MICROSERVICES):
+        for idx, svc in enumerate(service_names):
+            if idx >= forecasts_np.shape[0]:
+                break
             svc_forecast = forecasts_np[idx] # [5, 10]
-            prob = float(failure_probs_np[idx])
+            prob = float(failure_probs_np[idx]) if idx < len(failure_probs_np) else 0.0
             
             # Find maximum forecasted Z-score breach
             max_z = float(np.max(svc_forecast))
             breached_signals = []
             
             for f_idx, sig in enumerate(SIGNALS):
-                sig_max_z = float(np.max(svc_forecast[f_idx]))
-                if sig_max_z >= z_threshold:
-                    breached_signals.append({
-                        "signal": sig,
-                        "max_forecasted_z": round(sig_max_z, 2)
-                    })
+                if f_idx < svc_forecast.shape[0]:
+                    sig_max_z = float(np.max(svc_forecast[f_idx]))
+                    if sig_max_z >= z_threshold:
+                        breached_signals.append({
+                            "signal": sig,
+                            "max_forecasted_z": round(sig_max_z, 2)
+                        })
                     
             if prob > max_prob:
                 max_prob = prob
@@ -179,6 +183,6 @@ class TCNPredictorEngine:
             
         results["highest_risk_service"] = risk_svc
         results["max_failure_prob"] = round(max_prob, 4)
-        results["system_anomaly_detected"] = bool(max_prob >= 0.5 or any(s["breached_signals"] for s in results["services"].values()))
+        results["system_anomaly_detected"] = bool(max_prob >= 0.5 or any(s.get("breached_signals") for s in results["services"].values()))
         
         return results

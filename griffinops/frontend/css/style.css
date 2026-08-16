@@ -84,14 +84,6 @@ body {
 .nav-item:hover { background: rgba(255, 255, 255, 0.04); color: var(--text-primary); }
 .nav-item.active { background: var(--accent-amber-glow); color: var(--accent-amber); border-left: 3px solid var(--accent-amber); font-weight: 700; }
 
-.standalone-store-link { margin: 14px 0; }
-.store-nav-btn {
-  display: block; background: rgba(245, 158, 11, 0.1); border: 1px solid var(--accent-amber);
-  color: var(--accent-amber); text-decoration: none; padding: 10px; border-radius: 10px;
-  font-size: 12px; font-weight: 700; text-align: center; transition: all 0.2s ease;
-}
-.store-nav-btn:hover { background: var(--accent-amber); color: #080a0f; }
-
 .user-session-box {
   background: rgba(255, 255, 255, 0.03); border: 1px solid var(--bg-card-border);
   padding: 10px 12px; border-radius: 12px; display: flex; align-items: center; gap: 10px;

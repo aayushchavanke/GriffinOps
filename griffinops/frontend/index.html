@@ -89,14 +89,7 @@
         <button class="nav-item" onclick="switchTab('illustrations')">
           <span class="nav-icon">🪄</span> AI Illustrations & Code Fixes
         </button>
-        <button class="nav-item" onclick="switchTab('reports')">
-          <span class="nav-icon">📜</span> Audit Reports & DOCX Export
-        </button>
       </nav>
-
-      <div class="standalone-store-link">
-        <a href="/store" target="_blank" class="store-nav-btn">🛒 Open Standalone Store App ↗</a>
-      </div>
 
       <div class="user-session-box">
         <div class="user-avatar" id="user-avatar-tag">SL</div>
@@ -154,7 +147,7 @@
               </p>
               <div class="form-group">
                 <label>Registered Developer Alert Email Addresses (Comma Separated):</label>
-                <input type="text" id="pref-dev-emails" value="sre-dev@sies.edu, lead-dev@company.com">
+                <input type="text" id="pref-dev-emails" value="griffinops26@gmail.com, sre-dev@sies.edu">
               </div>
               <div class="form-group" style="display:flex; align-items:center; gap:10px;">
                 <input type="checkbox" id="pref-alerts-enabled" checked style="width:auto;">
@@ -165,63 +158,39 @@
                 <button class="btn btn-primary" style="background:linear-gradient(135deg, #10b981, #059669); color:#fff;" onclick="sendTestAlertEmail()">🧪 Send Test Alert Email</button>
               </div>
 
-              <div class="email-servers-box" style="margin-top:20px; background:rgba(30,41,59,0.6); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:20px;">
-                <div style="display:flex; justify-space-between; align-items:center; margin-bottom:12px;">
-                  <h4 style="color:var(--accent-amber); margin:0; font-size:15px; font-weight:800;">⚙️ Real Email Delivery Credentials & SMTP Server Setup:</h4>
-                  <span id="email-config-status-badge" class="badge badge-amber" style="font-size:11px;">Active: LOCAL PREVIEW</span>
+              <div style="margin-top:16px; background:rgba(30,41,59,0.6); border:1px solid rgba(245,158,11,0.3); border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <span style="font-size:12px; color:var(--text-muted); display:block;">Active Alert Delivery Sender:</span>
+                  <strong style="color:var(--accent-amber); font-size:13px;">griffinops26@gmail.com (Gmail TLS SMTP)</strong>
                 </div>
-                <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px; line-height:1.5;">
-                  By default, alerts without API keys or SMTP passwords are saved as HTML previews in <code>email_previews/</code>. 
-                  To receive <strong>real alert emails directly in your Gmail or personal inbox</strong>, enter your SMTP server credentials or Brevo API key below:
-                </p>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
-                  <div class="form-group" style="margin:0;">
-                    <label style="font-size:11px; color:#94a3b8;">SMTP Host (e.g., smtp.gmail.com):</label>
-                    <input type="text" id="smtp-host-input" placeholder="smtp.gmail.com">
-                  </div>
-                  <div class="form-group" style="margin:0;">
-                    <label style="font-size:11px; color:#94a3b8;">SMTP Port (587 TLS / 465 SSL):</label>
-                    <input type="number" id="smtp-port-input" placeholder="587" value="587">
-                  </div>
-                  <div class="form-group" style="margin:0;">
-                    <label style="font-size:11px; color:#94a3b8;">SMTP Email Username / Sender:</label>
-                    <input type="email" id="smtp-user-input" placeholder="your-email@gmail.com">
-                  </div>
-                  <div class="form-group" style="margin:0;">
-                    <label style="font-size:11px; color:#94a3b8;">SMTP Password / Gmail App Password:</label>
-                    <input type="password" id="smtp-pass-input" placeholder="16-character App Password">
-                  </div>
-                </div>
-
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
-                  <div class="form-group" style="margin:0;">
-                    <label style="font-size:11px; color:#94a3b8;">Brevo (Sendinblue) API Key (Free 300/day):</label>
-                    <input type="text" id="brevo-key-input" placeholder="xkeysib-...">
-                  </div>
-                  <div class="form-group" style="margin:0;">
-                    <label style="font-size:11px; color:#94a3b8;">Resend API Key (Free 3,000/month):</label>
-                    <input type="text" id="resend-key-input" placeholder="re_...">
-                  </div>
-                </div>
-
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <button class="btn btn-primary" style="background:linear-gradient(135deg, #f59e0b, #d97706); color:#000; font-weight:800;" onclick="saveEmailCredentials()">💾 Save & Activate Real Email Server</button>
-                </div>
-
-                <details style="margin-top:16px; background:#0b0f19; padding:12px; border-radius:8px; font-size:12px; color:#94a3b8;">
-                  <summary style="cursor:pointer; color:var(--accent-cyan); font-weight:bold;">💡 Quick Guide: How to receive real emails in your Gmail inbox (30 Seconds Setup)</summary>
-                  <ol style="margin:10px 0 0 18px; padding:0; line-height:1.7;">
-                    <li>Open your Google Account > <strong>Security</strong> > Enable <strong>2-Step Verification</strong>.</li>
-                    <li>Search for <strong>"App Passwords"</strong> in the top search bar of Google Account.</li>
-                    <li>Generate a new App Password named <code>GriffinOps</code> and paste the 16-letter password above into <strong>SMTP Password</strong>.</li>
-                    <li>Set <strong>SMTP Host</strong> to <code>smtp.gmail.com</code>, <strong>SMTP Port</strong> to <code>587</code>, and enter your Gmail address.</li>
-                    <li>Click <strong>Save & Activate Real Email Server</strong> and then click <strong>🧪 Send Test Alert Email</strong>!</li>
-                  </ol>
-                </details>
+                <span class="badge badge-amber">Connected & Operational 🟢</span>
               </div>
             </section>
           </div>
+
+          <section class="card" style="margin-top:24px;">
+            <div class="card-header">
+              <h2>Automated Background Email Watchdog Dispatch Log (Sent to griffinops26@gmail.com)</h2>
+              <span class="badge badge-purple">Automated Background Daemon</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Report ID</th>
+                    <th>Target Microservice</th>
+                    <th>Recipient Email</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="watchdog-history-table-body">
+                  <!-- Populated via JS -->
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </main>
 
@@ -250,6 +219,50 @@
                   <!-- Populated via JS -->
                 </tbody>
               </table>
+            </div>
+          </section>
+
+          <!-- API CODE SNIPPETS & INTEGRATION SDK CARD -->
+          <section class="card">
+            <div class="card-header">
+              <h2>⚙️ API Key Integration Code Snippets & SDK Formats</h2>
+              <span class="badge badge-purple">Multi-Format Embed SDK</span>
+            </div>
+            <p style="color:var(--text-muted); font-size:12px; margin-bottom:14px;">
+              Copy and embed any code snippet format below into your hosted website or web application to send live telemetry directly into GriffinOps:
+            </p>
+            
+            <div class="auth-tabs" style="margin-bottom:12px;">
+              <button class="auth-tab-btn active" id="card-btn-snippet-script" onclick="switchCardSnippetTab('script')">HTML Script Tag</button>
+              <button class="auth-tab-btn" id="card-btn-snippet-js" onclick="switchCardSnippetTab('js')">JS Fetch API</button>
+              <button class="auth-tab-btn" id="card-btn-snippet-python" onclick="switchCardSnippetTab('python')">Python Requests</button>
+              <button class="auth-tab-btn" id="card-btn-snippet-curl" onclick="switchCardSnippetTab('curl')">cURL Command</button>
+            </div>
+
+            <div id="card-snippet-box-script" class="snippet-code-box" style="background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:14px; border-radius:8px; font-family:monospace; font-size:12px; color:#38bdf8; overflow-x:auto;">
+              &lt;script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="YOUR_GENERATED_API_KEY"&gt;&lt;/script&gt;
+            </div>
+            <div id="card-snippet-box-js" class="snippet-code-box" style="display:none; background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:14px; border-radius:8px; font-family:monospace; font-size:12px; color:#34d399; overflow-x:auto;">
+              fetch("http://localhost:8000/api/v1/telemetry/ingest", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "X-GriffinOps-API-Key": "YOUR_GENERATED_API_KEY" },
+  body: JSON.stringify({ latency_ms: 125.4, status_code: 200, endpoint: "/api/checkout" })
+});
+            </div>
+            <div id="card-snippet-box-python" class="snippet-code-box" style="display:none; background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:14px; border-radius:8px; font-family:monospace; font-size:12px; color:#fbbf24; overflow-x:auto;">
+              import requests
+
+headers = {"X-GriffinOps-API-Key": "YOUR_GENERATED_API_KEY"}
+requests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 125.4, "status_code": 200})
+            </div>
+            <div id="card-snippet-box-curl" class="snippet-code-box" style="display:none; background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:14px; border-radius:8px; font-family:monospace; font-size:12px; color:#f43f5e; overflow-x:auto;">
+              curl -X POST "http://localhost:8000/api/v1/telemetry/ingest" \
+  -H "X-GriffinOps-API-Key: YOUR_GENERATED_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"latency_ms": 125.4, "status_code": 200}'
+            </div>
+            <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+              <button class="btn btn-primary" onclick="copyCardSnippet()">📋 Copy Code Snippet</button>
             </div>
           </section>
 
@@ -387,47 +400,6 @@
         </div>
       </main>
 
-      <!-- TAB 5: Audit Reports & DOCX Architecture Export -->
-      <main class="tab-content" id="tab-reports">
-        <div class="portal-grid">
-          <section class="card audit-card" id="audit-report-card">
-            <div class="card-header">
-              <h2>🦅 Active GriffinOps Pre-Mortem Audit Report & Documentation</h2>
-              <div class="report-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
-                <button class="btn btn-primary" onclick="downloadPDFReport()">📥 Download PDF Audit Report</button>
-                <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-slate), var(--accent-purple)); color:#fff;" onclick="downloadDOCXDoc()">📄 Download Architecture .DOCX</button>
-                <button class="btn btn-primary" style="background:linear-gradient(135deg, var(--accent-amber), #b45309); color:#fff;" onclick="downloadProjectReport()">📜 Download Academic Project Report (.DOCX)</button>
-              </div>
-            </div>
-            <div class="report-content" id="report-content-body">
-              <div class="placeholder-report"><p>System healthy. Operate the <strong>Standalone Store App</strong> to inject synthetic fault scenarios.</p></div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-header">
-              <h2>Automated Background Email Watchdog Dispatch Log (No Click Required)</h2>
-              <span class="badge badge-amber">Automated Background Email Watchdog</span>
-            </div>
-            <div class="table-responsive">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>Report ID</th>
-                    <th>Target Microservice</th>
-                    <th>Recipient Developer Email</th>
-                    <th>Status</th>
-                    <th>Preview</th>
-                  </tr>
-                </thead>
-                <tbody id="watchdog-history-table-body">
-                  <!-- Populated via JS -->
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
       </main>
     </div>
 
@@ -441,16 +413,11 @@
         <div class="modal-body">
           <div class="form-group">
             <label>API Key Name</label>
-            <input type="text" id="new-key-name" placeholder="e.g., Staging Checkout Key" value="Staging Checkout Key">
+            <input type="text" id="new-key-name" placeholder="e.g., My Hosted Store API">
           </div>
           <div class="form-group">
-            <label>Target Microservice</label>
-            <select id="new-key-svc">
-              <option value="checkoutservice">checkoutservice (/api/checkout)</option>
-              <option value="paymentservice">paymentservice (/api/payment)</option>
-              <option value="cartservice">cartservice (/api/cart)</option>
-              <option value="recommendationservice">recommendationservice (/api/recommendations)</option>
-            </select>
+            <label>Target Website / Hosted API URL</label>
+            <input type="url" id="new-key-url" placeholder="https://mywebsite.com/api">
           </div>
           <div class="form-group">
             <label>Environment</label>
@@ -478,11 +445,11 @@
         <div class="modal-body">
           <div class="form-group">
             <label>Website / Service Name</label>
-            <input type="text" id="real-site-name" placeholder="e.g., Production Payment Gateway" value="My Live Web App">
+            <input type="text" id="real-site-name" placeholder="e.g., Production Payment Gateway">
           </div>
           <div class="form-group">
-            <label>Target Live URL (e.g. https://httpbin.org/get or your website)</label>
-            <input type="url" id="real-site-url" placeholder="https://mywebsite.com" value="https://httpbin.org/get">
+            <label>Target Live URL (e.g. https://mywebsite.com/api)</label>
+            <input type="url" id="real-site-url" placeholder="https://mywebsite.com">
           </div>
           <div class="form-group">
             <label>Type</label>
@@ -496,6 +463,33 @@
         <div class="modal-footer">
           <button class="btn-secondary" onclick="closeAddRealSiteModal()">Cancel</button>
           <button class="btn-primary" onclick="submitAddRealSite()">Start Monitoring</button>
+    <!-- Embed Telemetry SDK Modal for Hosted Websites -->
+    <div class="modal-overlay" id="sdk-embed-modal">
+      <div class="modal-card" style="max-width: 680px;">
+        <div class="modal-header">
+          <h3>⚙️ Embed Telemetry SDK into your Hosted Website</h3>
+          <button class="close-btn" onclick="closeSDKEmbedModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px; line-height:1.5;">
+            Embed real-time predictive observability on your hosted website. Copy any code format below to send live telemetry directly into GriffinOps for PyTorch TCN anomaly forecasting:
+          </p>
+
+          <div class="auth-tabs" style="margin-bottom:14px;">
+            <button class="auth-tab-btn active" id="btn-snippet-script" onclick="switchSnippetTab('script')">HTML Script Tag</button>
+            <button class="auth-tab-btn" id="btn-snippet-js" onclick="switchSnippetTab('js')">JS Fetch API</button>
+            <button class="auth-tab-btn" id="btn-snippet-python" onclick="switchSnippetTab('python')">Python Requests</button>
+            <button class="auth-tab-btn" id="btn-snippet-curl" onclick="switchSnippetTab('curl')">cURL Header</button>
+          </div>
+
+          <div id="snippet-box-script" class="snippet-code-box" style="background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:8px; font-family:monospace; font-size:12px; color:#38bdf8; overflow-x:auto;"></div>
+          <div id="snippet-box-js" class="snippet-code-box" style="display:none; background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:8px; font-family:monospace; font-size:12px; color:#34d399; overflow-x:auto;"></div>
+          <div id="snippet-box-python" class="snippet-code-box" style="display:none; background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:8px; font-family:monospace; font-size:12px; color:#fbbf24; overflow-x:auto;"></div>
+          <div id="snippet-box-curl" class="snippet-code-box" style="display:none; background:#080a0f; border:1px solid rgba(255,255,255,0.1); padding:12px; border-radius:8px; font-family:monospace; font-size:12px; color:#f43f5e; overflow-x:auto;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="copyActiveSnippet()">📋 Copy Code</button>
+          <button class="btn btn-primary" onclick="closeSDKEmbedModal()">Done</button>
         </div>
       </div>
     </div>

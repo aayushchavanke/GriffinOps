@@ -11,7 +11,6 @@ from griffinops.rca.causal_engine import CausalRCAEngine
 from griffinops.simulation.fault_simulator import FaultSimulatorManager
 from griffinops.alerts.notifier import DualNotifier
 from griffinops.api.keys import APIKeyManager
-from griffinops.dummy_app.app import DummyECommerceApp
 from griffinops.alerts.watchdog import BackgroundAlertWatchdog
 from griffinops.reports.pdf_generator import PDFReportGenerator
 import griffinops.api.routes as routes
@@ -38,7 +37,6 @@ routes.rca_engine = CausalRCAEngine()
 routes.fault_simulator = FaultSimulatorManager()
 routes.notifier = DualNotifier()
 routes.api_key_manager = APIKeyManager()
-routes.dummy_app = DummyECommerceApp()
 routes.pdf_generator = PDFReportGenerator()
 
 # Initialize & start automated background watchdog daemon
@@ -54,24 +52,11 @@ routes.watchdog.start()
 
 # Include REST routers
 app.include_router(routes.router)
-app.include_router(routes.dummy_router)
 
 # Mount static frontend SRE Dashboard
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 if os.path.exists(frontend_dir):
     app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
-
-# Mount Standalone Dummy Store App (`/store`)
-dummy_store_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dummy_store")
-if os.path.exists(dummy_store_dir):
-    app.mount("/store/static", StaticFiles(directory=dummy_store_dir), name="store_static")
-
-@app.get("/store")
-def serve_dummy_store():
-    store_index = os.path.join(dummy_store_dir, "index.html")
-    if os.path.exists(store_index):
-        return FileResponse(store_index)
-    return {"message": "Dummy Store UI under construction."}
 
 @app.get("/")
 def serve_dashboard():

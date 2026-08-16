@@ -66,13 +66,16 @@ class ZScoreNormalizer:
 
         return z_scores_by_service
 
-    def to_tensor_format(self, z_scores_by_service: Dict[str, pd.DataFrame], sequence_length: int = 30) -> torch.Tensor:
-        num_services = len(self.services)
+    def to_tensor_format(self, z_scores_by_service: Dict[str, pd.DataFrame], sequence_length: int = 30) -> Tuple[torch.Tensor, List[str]]:
+        service_names = list(z_scores_by_service.keys())
+        if not service_names:
+            return torch.zeros((0, len(self.signals), sequence_length), dtype=torch.float32), []
+
+        num_services = len(service_names)
         num_features = len(self.signals)
-        
         tensor_data = np.zeros((num_services, num_features, sequence_length), dtype=np.float32)
 
-        for s_idx, svc in enumerate(self.services):
+        for s_idx, svc in enumerate(service_names):
             df = z_scores_by_service.get(svc, pd.DataFrame())
             for f_idx, sig in enumerate(self.signals):
                 if sig in df.columns:
@@ -80,7 +83,7 @@ class ZScoreNormalizer:
                     if len(vals) >= sequence_length:
                         seq_vals = vals[-sequence_length:]
                     else:
-                        seq_vals = np.pad(vals, (sequence_length - len(vals), 0), 'edge')
+                        seq_vals = np.pad(vals, (sequence_length - len(vals), 0), 'edge') if len(vals) > 0 else np.zeros(sequence_length)
                     tensor_data[s_idx, f_idx, :] = seq_vals
 
-        return torch.tensor(tensor_data, dtype=torch.float32)
+        return torch.tensor(tensor_data, dtype=torch.float32), service_names

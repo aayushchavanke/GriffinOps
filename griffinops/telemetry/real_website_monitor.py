@@ -3,12 +3,7 @@ import requests
 import pandas as pd
 from typing import Dict, List, Optional
 
-DEFAULT_REAL_SITES = [
-  {"name": "HttpBin API Service", "url": "https://httpbin.org/get", "type": "REST API"},
-  {"name": "Google Search Gateway", "url": "https://google.com", "type": "Web Service"},
-  {"name": "GitHub API Endpoint", "url": "https://api.github.com", "type": "Developer API"},
-  {"name": "HttpBin Latency Simulator", "url": "https://httpbin.org/delay/1", "type": "Latency Target"}
-]
+DEFAULT_REAL_SITES = []
 
 class RealWebsiteMonitor:
     """
@@ -17,8 +12,8 @@ class RealWebsiteMonitor:
     measuring real network latency, status codes, payload sizes, and SSL responsiveness.
     """
     def __init__(self):
-        self.sites = DEFAULT_REAL_SITES.copy()
-        self.history: Dict[str, List[dict]] = {site["url"]: [] for site in self.sites}
+        self.sites = []
+        self.history: Dict[str, List[dict]] = {}
 
     def ping_all_sites(self) -> Dict[str, dict]:
         """

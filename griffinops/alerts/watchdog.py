@@ -22,7 +22,7 @@ class BackgroundAlertWatchdog:
         self.last_alert_time: float = 0.0
         self.cooldown_seconds: float = 45.0 # Prevent duplicate email spam during single fault window
         self.dispatch_log: List[dict] = []
-        self.registered_developer_emails = ["sre-dev@sies.edu", "lead-dev@company.com"]
+        self.registered_developer_emails = ["griffinops26@gmail.com", "sre-dev@sies.edu"]
 
     def start(self):
         if self.is_running:
@@ -46,9 +46,8 @@ class BackgroundAlertWatchdog:
         active_fault = self.fault_simulator.get_status().get("fault")
         telemetry = self.telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
         z_scores = self.normalizer.compute_z_scores(telemetry)
-        tensor = self.normalizer.to_tensor_format(z_scores, sequence_length=30)
-        
-        tcn_results = self.tcn_predictor.predict(tensor)
+        tensor, service_names = self.normalizer.to_tensor_format(z_scores, sequence_length=30)
+        tcn_results = self.tcn_predictor.predict(tensor, service_names=service_names)
         
         # Check if an anomaly breach is predicted
         if tcn_results.get("system_anomaly_detected") or (active_fault is not None):

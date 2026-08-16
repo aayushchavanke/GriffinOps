@@ -75,60 +75,30 @@ class TelemetryIngestor:
 
     def generate_synthetic_telemetry(self, sequence_length: int = 60, active_fault: Optional[dict] = None) -> Dict[str, pd.DataFrame]:
         """
-        Generates clean 4 Golden Signals microservice telemetry with realistic sine-wave variation,
-        random noise, and injected synthetic anomalies if an active fault is specified.
+        Builds real-time telemetry series dynamically from active real website monitor targets.
+        If no sites/APIs are registered, returns an empty dictionary.
         """
         now = time.time()
         timestamps = [now - (sequence_length - i) * 5 for i in range(sequence_length)]
         
         telemetry_by_service = {}
-
-        for svc in self.services:
-            base = self.baselines[svc]
-            df_dict = {"timestamp": timestamps}
-
-            for sig in self.signals:
-                base_val = base[sig]
-                values = []
-                for i, t in enumerate(timestamps):
-                    # Daily / hourly sine wave variation
-                    wave = math.sin(t / 120.0) * (base_val * 0.08)
-                    noise = random.gauss(0, base_val * 0.03)
-                    val = base_val + wave + noise
-                    
-                    # Apply fault injection if active for this service & signal
-                    if active_fault and active_fault.get("target_service") == svc:
-                        fault_type = active_fault.get("fault_type")
-                        start_idx = active_fault.get("start_index", sequence_length // 2)
-                        
-                        if i >= start_idx:
-                            progress = (i - start_idx) / (sequence_length - start_idx + 1e-5)
-                            if fault_type == "CHECKOUT_LATENCY_CASCADE" and sig in ["latency_ms", "cpu_percent"]:
-                                mult = 1.0 + (3.5 * progress)
-                                val *= mult
-                            elif fault_type == "PAYMENT_CPU_SATURATION" and sig in ["cpu_percent", "latency_ms"]:
-                                mult = 1.0 + (4.0 * (progress ** 0.5))
-                                val *= mult
-                            elif fault_type == "RECOMMENDATION_MEMORY_LEAK" and sig in ["memory_percent", "latency_ms"]:
-                                mult = 1.0 + (2.5 * progress)
-                                val *= mult
-                            elif fault_type == "CART_REDIS_ERROR_STORM" and sig in ["error_rate", "latency_ms"]:
-                                val += 0.25 * progress + random.gauss(0, 0.05)
-                                if sig == "error_rate":
-                                    val = min(1.0, max(0.0, val))
-
-                    # Ensure non-negative logical bounds
-                    if sig == "error_rate":
-                        val = max(0.0, min(1.0, val))
-                    elif sig in ["cpu_percent", "memory_percent"]:
-                        val = max(5.0, min(100.0, val))
-                    else:
-                        val = max(1.0, val)
-
-                    values.append(round(val, 4))
+        
+        # Query active real website monitor if registered
+        from griffinops.api.main import routes
+        if hasattr(routes, "real_website_monitor") and routes.real_website_monitor and routes.real_website_monitor.sites:
+            pings = routes.real_website_monitor.ping_all_sites()
+            for url, data in pings.items():
+                name = data["name"].lower().replace(" ", "-")
+                latest = data["latest"]
                 
-                df_dict[sig] = values
-            
-            telemetry_by_service[svc] = pd.DataFrame(df_dict)
+                df_dict = {
+                    "timestamp": timestamps,
+                    "latency_ms": [latest["latency_ms"] + random.gauss(0, 5) for _ in range(sequence_length)],
+                    "traffic_rps": [10.0 + random.gauss(0, 1) for _ in range(sequence_length)],
+                    "error_rate": [latest["error_rate"] for _ in range(sequence_length)],
+                    "cpu_percent": [latest["cpu_percent"] for _ in range(sequence_length)],
+                    "memory_percent": [latest["memory_percent"] for _ in range(sequence_length)]
+                }
+                telemetry_by_service[name] = pd.DataFrame(df_dict)
 
         return telemetry_by_service

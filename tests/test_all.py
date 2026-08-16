@@ -13,7 +13,6 @@ from griffinops.rca.causal_engine import CausalRCAEngine
 from griffinops.simulation.fault_simulator import FaultSimulatorManager
 from griffinops.alerts.notifier import DualNotifier
 from griffinops.api.keys import APIKeyManager
-from griffinops.dummy_app.app import DummyECommerceApp
 from griffinops.reports.pdf_generator import PDFReportGenerator
 from griffinops.auth.supabase_auth import SupabaseAuthEngine
 from griffinops.telemetry.real_website_monitor import RealWebsiteMonitor
@@ -30,6 +29,7 @@ class TestGriffinOpsRealTelemetryAndDOCXPipeline(unittest.TestCase):
         self.client = TestClient(app)
 
     def test_real_website_monitor(self):
+        self.real_monitor.add_monitored_site("Test Site", "https://httpbin.org/get")
         res = self.real_monitor.ping_all_sites()
         self.assertTrue(len(res) > 0)
         first_url = list(res.keys())[0]

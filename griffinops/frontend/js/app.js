@@ -1,21 +1,14 @@
 let authToken = localStorage.getItem("gop_token") || null;
 let currentUser = JSON.parse(localStorage.getItem("gop_user") || "null");
-let currentService = "checkoutservice";
-let selectedAPIEndpoint = "/api/checkout";
+let currentService = null;
+let selectedAPIEndpoint = null;
 
 let liveTelemetryChart = null;
 let forecastChart = null;
 let illustrationForecastChart = null;
 let pollTimer = null;
 
-const MICROSERVICES = [
-  "frontend-service",
-  "cartservice",
-  "checkoutservice",
-  "paymentservice",
-  "recommendationservice",
-  "adservice"
-];
+let MICROSERVICES = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   if (authToken) {
@@ -147,15 +140,17 @@ function switchTab(tabId) {
   document.querySelectorAll(".tab-content").forEach(el => el.classList.remove("active"));
   document.querySelectorAll(".nav-item").forEach(el => el.classList.remove("active"));
 
-  document.getElementById(`tab-${tabId}`).classList.add("active");
-  event.currentTarget.classList.add("active");
+  const targetTab = document.getElementById(`tab-${tabId}`);
+  if (targetTab) targetTab.classList.add("active");
+
+  const navBtn = document.querySelector(`.nav-item[onclick*="${tabId}"]`);
+  if (navBtn) navBtn.classList.add("active");
 
   const titles = {
     "profile": "User Profile & Email Alert Settings",
-    "api-portal": "Generated API Keys & Monitored APIs Portal",
-    "telemetry": "Real Website Telemetry & PyTorch TCN Forecaster",
-    "illustrations": "AI Visual Illustrations & API Code Suggestions",
-    "reports": "Pre-Mortem Audit Reports & DOCX Architecture Export"
+    "api-portal": "Generated API Keys & Monitored Targets Portal",
+    "telemetry": "Real Live Website Telemetry & PyTorch TCN Forecaster",
+    "illustrations": "AI Visual Illustrations & API Code Suggestions"
   };
   document.getElementById("page-title-display").innerText = titles[tabId] || "GriffinOps Portal";
 
@@ -179,7 +174,12 @@ async function fetchRealWebsites() {
       const tbody = document.getElementById("real-websites-table-body");
       if (!tbody) return;
       tbody.innerHTML = "";
-      Object.values(sites).forEach(site => {
+      const siteList = Object.values(sites);
+      if (siteList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">🌐 No active monitored target URLs yet. Generate an API Key in Tab 2 or click <strong>+ Monitor Custom Website</strong> above!</td></tr>`;
+        return;
+      }
+      siteList.forEach(site => {
         const lat = site.latest.latency_ms;
         const status = site.latest.status_code;
         const tr = document.createElement("tr");
@@ -332,6 +332,10 @@ function initServiceTabs() {
   const container = document.getElementById("services-selector");
   if (!container) return;
   container.innerHTML = "";
+  if (MICROSERVICES.length === 0) {
+    container.innerHTML = `<span style="font-size:12px; color:var(--text-muted);">No active target services. Generate an API Key in Tab 2 or add a website URL.</span>`;
+    return;
+  }
   MICROSERVICES.forEach(svc => {
     const btn = document.createElement("button");
     btn.className = `svc-tab ${svc === currentService ? 'active' : ''}`;
@@ -425,7 +429,17 @@ async function pollData() {
     
     if (telemetryResp.ok) {
       const telData = await telemetryResp.json();
-      updateTelemetryChart(telData[currentService]);
+      const keys = Object.keys(telData);
+      if (JSON.stringify(keys) !== JSON.stringify(MICROSERVICES)) {
+        MICROSERVICES = keys;
+        if (MICROSERVICES.length > 0 && (!currentService || !MICROSERVICES.includes(currentService))) {
+          currentService = MICROSERVICES[0];
+        }
+        initServiceTabs();
+      }
+      if (currentService && telData[currentService]) {
+        updateTelemetryChart(telData[currentService]);
+      }
     }
     
     if (forecastResp.ok) {
@@ -463,11 +477,12 @@ function updateForecastPanel(forecastData) {
   if (isAnomaly) {
     statusIndicator.className = "system-health-pill hazard";
     statusText.innerText = "PREDICTED OUTAGE HAZARD";
-    document.getElementById("forecast-ttf-val").innerText = "T-minus 4 min";
+    if (!countdownInterval) startDynamicCountdown(240);
   } else {
     statusIndicator.className = "system-health-pill";
     statusText.innerText = "SYSTEM HEALTHY";
     document.getElementById("forecast-ttf-val").innerText = "HEALTHY";
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
   }
 
   const svcInfo = forecastData.services[currentService];
@@ -501,7 +516,7 @@ function updateAuditReport(report) {
     <div style="display:flex; flex-direction:column; gap:16px;">
       <div style="background:var(--accent-rose-glow); border:1px solid var(--accent-rose); padding:14px 20px; border-radius:10px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; color:#ff4d8d;">
         <span>🚨 [${sev}] PRE-MORTEM HAZARD: ${rca.service} Outage Threat</span>
-        <span style="font-size:16px; background:#e11d48; color:#fff; padding:4px 12px; border-radius:20px;">⏳ Time Left: ${report.forecasted_time_to_failure_human}</span>
+        <span id="report-ttf-tag" style="font-size:16px; background:#e11d48; color:#fff; padding:4px 12px; border-radius:20px;">⏳ Time Left: ${report.forecasted_time_to_failure_human}</span>
       </div>
 
       <!-- BUSINESS & FINANCIAL IMPACT CARD -->
@@ -606,6 +621,10 @@ async function fetchAPIKeys() {
       const tbody = document.getElementById("api-keys-table-body");
       if (!tbody) return;
       tbody.innerHTML = "";
+      if (keys.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:16px;">🔑 No API keys generated yet. Click <strong>+ Generate New API Key</strong> above to get started.</td></tr>`;
+        return;
+      }
       keys.forEach(k => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -615,7 +634,10 @@ async function fetchAPIKeys() {
           <td><span class="badge badge-amber">${k.environment}</span></td>
           <td>${k.requests_total.toLocaleString()}</td>
           <td><span class="badge badge-amber">${k.status}</span></td>
-          <td><button class="btn-danger-sm" onclick="revokeKey('${k.key_id}')">Revoke</button></td>
+          <td>
+            <button class="btn btn-primary" style="padding:4px 8px; font-size:11px; margin-right:4px;" onclick="openSDKEmbedModal('${k.api_key}')">⚙️ Embed SDK</button>
+            <button class="btn-danger-sm" onclick="revokeKey('${k.key_id}')">Revoke</button>
+          </td>
         `;
         tbody.appendChild(tr);
       });
@@ -631,6 +653,10 @@ async function fetchMonitoredAPIs() {
       const tbody = document.getElementById("monitored-apis-table-body");
       if (!tbody) return;
       tbody.innerHTML = "";
+      if (apis.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:16px;">🌐 No monitored API targets registered yet. Generate an API key or register a website URL.</td></tr>`;
+        return;
+      }
       apis.forEach(api => {
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
@@ -674,13 +700,15 @@ async function fetchWatchdogHistory() {
       }
       logs.forEach(l => {
         const tr = document.createElement("tr");
+        const filename = l.preview_path ? l.preview_path.split(/[/\\]/).pop() : "";
+        const previewUrl = filename ? `/api/v1/email-previews/${filename}` : "#";
         tr.innerHTML = `
           <td>${l.timestamp}</td>
           <td><code>${l.report_id}</code></td>
           <td><code>${l.target_service}</code></td>
           <td><strong>${l.recipient}</strong></td>
-          <td><span class="badge badge-amber">AUTOMATED EMAIL SENT</span></td>
-          <td><a href="#" style="color:var(--accent-amber);" onclick="showToast('Local preview rendered at: ${l.preview_path}')">View Preview</a></td>
+          <td><span class="badge badge-purple">${l.status || 'SENT'}</span></td>
+          <td><a href="${previewUrl}" target="_blank" style="color:var(--accent-amber); font-weight:bold; text-decoration:none;">📄 View Preview ↗</a></td>
         `;
         tbody.appendChild(tr);
       });
@@ -693,20 +721,22 @@ function closeCreateKeyModal() { document.getElementById("create-key-modal").sty
 
 async function submitCreateAPIKey() {
   const name = document.getElementById("new-key-name").value;
-  const svc = document.getElementById("new-key-svc").value;
+  const targetUrl = document.getElementById("new-key-url").value;
   const env = document.getElementById("new-key-env").value;
 
   try {
     const resp = await fetch("/api/v1/keys/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name, assigned_service: svc, environment: env })
+      body: JSON.stringify({ name: name, target_url: targetUrl, environment: env })
     });
     if (resp.ok) {
       const newKey = await resp.json();
       showToast(`🔑 Generated API Key: ${newKey.api_key}`);
       closeCreateKeyModal();
       fetchAPIKeys();
+      fetchMonitoredAPIs();
+      openSDKEmbedModal(newKey.api_key);
     }
   } catch (err) {}
 }
@@ -728,13 +758,126 @@ function downloadPDFReport() {
 }
 
 function downloadDOCXDoc() {
-  window.open("/api/v1/docs/architecture.docx", "_blank");
-  showToast("📄 Downloading Architectural .DOCX Document...");
+  window.open("/api/v1/docs/project-report.docx", "_blank");
+  showToast("📄 Downloading Master Project Report (.DOCX)...");
 }
 
 function downloadProjectReport() {
   window.open("/api/v1/docs/project-report.docx", "_blank");
-  showToast("📜 Downloading Academic Project Report (.DOCX)...");
+  showToast("📄 Downloading Master Project Report (.DOCX)...");
+}
+
+// --- DYNAMIC COUNTDOWN TIMER FOR PRE-MORTEM OUTAGE HAZARDS ---
+let outageTimerSeconds = 240; // 4 minutes
+let countdownInterval = null;
+
+function startDynamicCountdown(initialSeconds = 240) {
+  if (countdownInterval) clearInterval(countdownInterval);
+  outageTimerSeconds = initialSeconds;
+
+  countdownInterval = setInterval(() => {
+    if (outageTimerSeconds > 0) {
+      outageTimerSeconds--;
+      const mins = Math.floor(outageTimerSeconds / 60);
+      const secs = outageTimerSeconds % 60;
+      const formatted = `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
+
+      const ttfElem = document.getElementById("forecast-ttf-val");
+      if (ttfElem) ttfElem.innerText = `T-minus ${formatted}`;
+
+      const reportTtfTag = document.getElementById("report-ttf-tag");
+      if (reportTtfTag) reportTtfTag.innerText = `⏳ Time Left: ${formatted}`;
+    } else {
+      clearInterval(countdownInterval);
+    }
+  }, 1000);
+}
+
+// --- SDK EMBED CODE SNIPPETS MODAL ---
+let activeSDKApiKey = "gop_live_default";
+let activeSnippetTab = "script";
+
+function openSDKEmbedModal(apiKey) {
+  if (apiKey) activeSDKApiKey = apiKey;
+  document.getElementById("sdk-embed-modal").style.display = "flex";
+  renderSnippets();
+}
+
+function closeSDKEmbedModal() {
+  document.getElementById("sdk-embed-modal").style.display = "none";
+}
+
+function switchSnippetTab(tab) {
+  activeSnippetTab = tab;
+  ['script', 'js', 'python', 'curl'].forEach(t => {
+    const btn = document.getElementById(`btn-snippet-${t}`);
+    const box = document.getElementById(`snippet-box-${t}`);
+    if (btn) btn.classList.remove("active");
+    if (box) box.style.display = "none";
+  });
+  const activeBtn = document.getElementById(`btn-snippet-${tab}`);
+  const activeBox = document.getElementById(`snippet-box-${tab}`);
+  if (activeBtn) activeBtn.classList.add("active");
+  if (activeBox) activeBox.style.display = "block";
+}
+
+function renderSnippets() {
+  const scriptTag = `<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${activeSDKApiKey}"></script>`;
+  
+  const jsFetch = `// JavaScript / Hosted Web App Fetch Snippet
+fetch("${window.location.origin}/api/v1/telemetry/live", {
+  headers: {
+    "X-GriffinOps-API-Key": "${activeSDKApiKey}"
+  }
+}).then(res => res.json()).then(data => console.log(data));`;
+
+  const pythonReq = `# Python Requests / FastAPI / Flask Snippet
+import requests
+
+headers = {"X-GriffinOps-API-Key": "${activeSDKApiKey}"}
+response = requests.get("${window.location.origin}/api/v1/health", headers=headers)
+print(response.json())`;
+
+  const curlCmd = `# cURL Command Header
+curl -X GET "${window.location.origin}/api/v1/health" \\
+  -H "X-GriffinOps-API-Key: ${activeSDKApiKey}"`;
+
+  if (document.getElementById("snippet-box-script")) document.getElementById("snippet-box-script").innerText = scriptTag;
+  if (document.getElementById("snippet-box-js")) document.getElementById("snippet-box-js").innerText = jsFetch;
+  if (document.getElementById("snippet-box-python")) document.getElementById("snippet-box-python").innerText = pythonReq;
+  if (document.getElementById("snippet-box-curl")) document.getElementById("snippet-box-curl").innerText = curlCmd;
+}
+
+function copyActiveSnippet() {
+  const box = document.getElementById(`snippet-box-${activeSnippetTab}`);
+  if (box) {
+    navigator.clipboard.writeText(box.innerText);
+    showToast("📋 Code snippet copied to clipboard!");
+  }
+}
+
+let activeCardSnippetTab = "script";
+
+function switchCardSnippetTab(tab) {
+  activeCardSnippetTab = tab;
+  ['script', 'js', 'python', 'curl'].forEach(t => {
+    const btn = document.getElementById(`card-btn-snippet-${t}`);
+    const box = document.getElementById(`card-snippet-box-${t}`);
+    if (btn) btn.classList.remove("active");
+    if (box) box.style.display = "none";
+  });
+  const activeBtn = document.getElementById(`card-btn-snippet-${tab}`);
+  const activeBox = document.getElementById(`card-snippet-box-${tab}`);
+  if (activeBtn) activeBtn.classList.add("active");
+  if (activeBox) activeBox.style.display = "block";
+}
+
+function copyCardSnippet() {
+  const box = document.getElementById(`card-snippet-box-${activeCardSnippetTab}`);
+  if (box) {
+    navigator.clipboard.writeText(box.innerText);
+    showToast("📋 Code snippet copied to clipboard!");
+  }
 }
 
 async function fetchTopology() {
