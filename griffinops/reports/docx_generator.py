@@ -204,6 +204,11 @@ class DOCXReportGenerator:
         plt.close(fig)
         image_paths["auth_wireframe"] = p5
 
+        p_arch = os.path.join(self.diagrams_dir, "griffinops_system_architecture.png")
+        p_wf = os.path.join(self.diagrams_dir, "griffinops_workflow_diagram.png")
+        if os.path.exists(p_arch): image_paths["arch_diagram"] = p_arch
+        if os.path.exists(p_wf): image_paths["wf_diagram"] = p_wf
+
         return image_paths
 
     def generate_docx(self) -> str:
@@ -330,6 +335,16 @@ class DOCXReportGenerator:
         p_c3 = doc.add_paragraph(
             "GriffinOps is architected into 5 distinct layers as detailed in the high-resolution wireframe diagrams below:"
         )
+
+        if "arch_diagram" in diagram_paths and os.path.exists(diagram_paths["arch_diagram"]):
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_img.add_run().add_picture(diagram_paths["arch_diagram"], width=Inches(6.2))
+
+        if "wf_diagram" in diagram_paths and os.path.exists(diagram_paths["wf_diagram"]):
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_img.add_run().add_picture(diagram_paths["wf_diagram"], width=Inches(6.2))
 
         if "sys_wireframe" in diagram_paths and os.path.exists(diagram_paths["sys_wireframe"]):
             p_img = doc.add_paragraph()
