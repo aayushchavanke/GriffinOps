@@ -1,0 +1,17 @@
+fastapi>=0.100.0
+uvicorn>=0.20.0
+torch>=2.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+statsmodels>=0.14.0
+networkx>=3.0
+requests>=2.28.0
+reportlab>=4.0.0
+python-docx>=1.0.0
+matplotlib>=3.7.0
+rcaeval
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-fastapi

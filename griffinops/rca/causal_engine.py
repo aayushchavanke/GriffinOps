@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 
+from griffinops.rca.rcaeval_engine import RCAEvalEngine
+
 class CausalRCAEngine:
     """
     RCAEval Causal Inference Engine with Dynamic Trace Graph Adjacency.
@@ -13,28 +15,28 @@ class CausalRCAEngine:
     """
     def __init__(self):
         self.topology: Dict[str, List[str]] = {}
+        self.rcaeval_engine = RCAEvalEngine()
 
     def analyze_root_cause(
         self,
         tcn_results: dict,
         z_scores_by_service: Dict[str, pd.DataFrame],
-        active_fault: Optional[dict] = None
+        active_fault: Optional[dict] = None,
+        algorithm: str = "composite"
     ) -> dict:
         now = time.time()
         
-        causal_scores = {}
-        for svc, svc_z_df in z_scores_by_service.items():
-            if svc_z_df.empty:
-                continue
-            latest_z = svc_z_df.tail(10).drop(columns=["timestamp"], errors="ignore")
-            max_z = float(latest_z.abs().max().max()) if not latest_z.empty else 0.0
-            mean_z = float(latest_z.abs().mean().mean()) if not latest_z.empty else 0.0
-            
+        tcn_probs = {}
+        for svc in z_scores_by_service.keys():
             tcn_svc_data = tcn_results.get("services", {}).get(svc, {})
-            tcn_prob = tcn_svc_data.get("failure_probability", 0.0)
-            
-            score = (max_z * 0.4) + (mean_z * 0.3) + (tcn_prob * 3.0)
-            causal_scores[svc] = round(score, 4)
+            tcn_probs[svc] = tcn_svc_data.get("failure_probability", 0.0)
+
+        causal_scores, rcaeval_meta = self.rcaeval_engine.compute_composite_rcaeval_score(
+            topology=self.topology,
+            z_scores_by_service=z_scores_by_service,
+            tcn_probabilities=tcn_probs,
+            algorithm=algorithm
+        )
 
         if active_fault and active_fault.get("target_service"):
             target_svc = active_fault["target_service"]
@@ -95,23 +97,60 @@ class CausalRCAEngine:
 
         confidence = min(0.98, max(0.75, round(top_score / 8.0, 2)))
         
-        # Dynamic Business Risk Assessment
-        loss_per_min = 350 if top_score >= 3.0 else 120
-        impacted_users = random.randint(3000, 12000)
-        sev_level = "CRITICAL (SEV-1)" if top_score >= 3.0 else "WARNING (SEV-2)"
+        # Robust MAD Anomaly Thresholding (Leys et al. 2013 / Google SRE Chebyshev Bounds)
+        # M < 3.5 -> Healthy Baseline (no false positive alert noise)
+        # M >= 3.5 -> SEV-2 Warning (early pre-mortem indication)
+        # M >= 5.0 -> SEV-1 Critical Hazard (imminent outage hazard)
+        is_hazard = bool(max_metric_z >= 3.5 or top_score >= 4.0)
+
+        # Dynamic Business Revenue Risk Model based on Microservice SLA Tier & Blast Radius
+        svc_lower = root_cause_service.lower()
+        if any(k in svc_lower for k in ["pay", "check", "order", "bill", "stripe"]):
+            base_sla_val = 850
+        elif any(k in svc_lower for k in ["auth", "login", "gate", "api", "ingress"]):
+            base_sla_val = 650
+        elif any(k in svc_lower for k in ["search", "catalog", "cart", "store"]):
+            base_sla_val = 400
+        else:
+            base_sla_val = 250
+
+        sev_multiplier = min(4.0, max(1.0, max_metric_z / 3.5))
+        blast_factor = 1.0 + (0.25 * len(impacted_services))
+        
+        if not is_hazard and not active_fault:
+            sev_level = "HEALTHY"
+            sys_status = "HEALTHY"
+            loss_per_min = 0
+            impacted_users = 0
+            bus_risk = "ZERO RISK"
+            bus_summary = "System baseline normal. All metrics within robust MAD 3.5x statistical bounds."
+        else:
+            sev_level = "CRITICAL (SEV-1)" if (max_metric_z >= 5.0 or top_score >= 5.0) else "WARNING (SEV-2)"
+            sys_status = "PREDICTED_OUTAGE_HAZARD"
+            loss_per_min = int(round(base_sla_val * sev_multiplier * blast_factor))
+            impacted_users = int(round(450 * sev_multiplier * blast_factor))
+            
+            if loss_per_min > 800:
+                bus_risk = "CRITICAL FINANCIAL EXPOSURE"
+            elif loss_per_min > 300:
+                bus_risk = "HIGH REVENUE LOSS RISK"
+            else:
+                bus_risk = "MODERATE SERVICE DEGRADATION"
+            
+            bus_summary = f"{sev_level}: Dynamic estimated ${loss_per_min:,}/min risk across {impacted_users:,} active sessions."
 
         audit_report = {
             "report_id": f"GO-RPT-{uuid.uuid4().hex[:8].upper()}",
             "generated_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(now)),
-            "system_status": "PREDICTED_OUTAGE_HAZARD" if top_score >= 1.5 else "HEALTHY",
+            "system_status": sys_status,
             "severity_level": sev_level,
-            "forecasted_time_to_failure_sec": predicted_ttf,
-            "forecasted_time_to_failure_human": f"{predicted_ttf // 60}m {predicted_ttf % 60:02d}s",
+            "forecasted_time_to_failure_sec": predicted_ttf if is_hazard else 0,
+            "forecasted_time_to_failure_human": f"{predicted_ttf // 60}m {predicted_ttf % 60:02d}s" if is_hazard else "HEALTHY",
             "business_impact": {
                 "estimated_loss_per_minute": f"${loss_per_min}/min",
                 "affected_active_user_sessions": f"{impacted_users:,} active users",
-                "business_risk_level": "HIGH REVENUE LOSS RISK" if loss_per_min > 300 else "MODERATE SERVICE DEGRADATION",
-                "summary": f"{sev_level}: Estimated ${loss_per_min}/min risk across {impacted_users:,} active sessions."
+                "business_risk_level": bus_risk,
+                "summary": bus_summary
             },
             "root_cause_analysis": {
                 "service": root_cause_service,
@@ -119,7 +158,9 @@ class CausalRCAEngine:
                 "primary_metric": root_cause_metric,
                 "max_z_score_deviation": max_metric_z,
                 "causal_confidence_score": confidence,
-                "causal_scores_ranking": causal_scores
+                "causal_scores_ranking": causal_scores,
+                "algorithm_used": algorithm,
+                "rcaeval_breakdown": rcaeval_meta
             },
             "blast_radius": {
                 "affected_microservices_count": len(impacted_services),

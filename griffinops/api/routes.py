@@ -252,6 +252,48 @@ def revoke_api_key(key_id: str):
 def get_monitored_apis():
     return api_key_manager.get_monitored_apis()
 
+# --- REAL LIVE WEBSITE MONITORING ROUTES ---
+@router.post("/real-monitor/targets")
+def add_real_website_target(req: AddRealSiteRequest):
+    site = real_website_monitor.add_monitored_site(name=req.name, url=req.url, site_type=req.site_type or "Live Web App")
+    return {"status": "ADDED", "target": site}
+
+@router.get("/real-monitor/targets")
+def get_real_website_targets():
+    return real_website_monitor.sites
+
+@router.get("/real-monitor/live")
+def get_real_website_live_metrics():
+    # Ensure default public target exists if empty
+    if not real_website_monitor.sites:
+        real_website_monitor.add_monitored_site(name="HTTPBin API Test", url="https://httpbin.org/get", site_type="Live API Endpoint")
+        real_website_monitor.add_monitored_site(name="GitHub Web Service", url="https://github.com", site_type="Live Web Application")
+
+    pings = real_website_monitor.ping_all_sites()
+    
+    # Build telemetry dataframes for real websites
+    telemetry = {}
+    for url, data in pings.items():
+        site_name = data["name"].lower().replace(" ", "-")
+        df = real_website_monitor.get_real_telemetry_dataframe(url)
+        if not df.empty:
+            telemetry[site_name] = df
+
+    z_scores = normalizer.compute_z_scores(telemetry) if telemetry else {}
+    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=30) if z_scores else (None, [])
+    
+    tcn_results = tcn_predictor.predict(tensor, service_names=service_names) if tensor is not None and len(service_names) > 0 else {"services": {}}
+    rca_report = rca_engine.analyze_root_cause(tcn_results, z_scores) if z_scores else {}
+
+    return {
+        "status": "ONLINE",
+        "timestamp": time.time(),
+        "real_website_pings": pings,
+        "z_scores_calculated": {svc: df.tail(1).to_dict(orient="records") for svc, df in z_scores.items()} if z_scores else {},
+        "tcn_forecast": tcn_results,
+        "rcaeval_analysis": rca_report
+    }
+
 # --- AI ILLUSTRATIONS & API SUGGESTIONS ---
 @router.get("/illustrations/details")
 def get_api_illustrations(api_endpoint: str = "/api/checkout"):
@@ -338,15 +380,19 @@ def reset_fault():
     res = fault_simulator.reset_fault()
     return res
 
+@router.get("/telemetry/signoz/status")
+def get_signoz_status():
+    return telemetry_ingestor.check_signoz_status()
+
 @router.get("/audit-reports/latest")
-def get_latest_audit_report():
+def get_latest_audit_report(algorithm: str = "composite"):
     active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
     telemetry = telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
     z_scores = normalizer.compute_z_scores(telemetry)
     tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=30)
     
     tcn_results = tcn_predictor.predict(tensor, service_names=service_names)
-    report = rca_engine.analyze_root_cause(tcn_results, z_scores, active_fault=active_fault)
+    report = rca_engine.analyze_root_cause(tcn_results, z_scores, active_fault=active_fault, algorithm=algorithm)
     return report
 
 @router.get("/audit-reports/{report_id}/pdf")

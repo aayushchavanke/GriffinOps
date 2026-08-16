@@ -42,23 +42,26 @@ class ZScoreNormalizer:
             for sig in self.signals:
                 if sig in df.columns:
                     series = df[sig]
-                    if len(series) >= self.window_size:
-                        roll_mean = series.rolling(window=self.window_size, min_periods=5).mean()
-                        roll_std = series.rolling(window=self.window_size, min_periods=5).std().fillna(1.0)
+                    if len(series) >= 3:
+                        # Robust Median Absolute Deviation (MAD) Modified Z-Score
+                        roll_median = series.rolling(window=self.window_size, min_periods=3).median()
+                        abs_diff = (series - roll_median).abs()
+                        roll_mad = abs_diff.rolling(window=self.window_size, min_periods=3).median()
                         
-                        # Apply epsilon variance smoothing to prevent divide-by-zero
-                        z_series = (series - roll_mean) / (roll_std + self.epsilon)
+                        # 0.6745 factor aligns MAD scale with standard deviation under normal distribution
+                        z_series = 0.6745 * (series - roll_median) / (roll_mad + self.epsilon)
                         
-                        mean_val = svc_stats.get(sig, {}).get("mean", 50.0)
+                        # Fallback for static baseline stats
+                        med_val = svc_stats.get(sig, {}).get("mean", 50.0)
                         std_val = svc_stats.get(sig, {}).get("std", 10.0)
-                        z_fallback = (series - mean_val) / (std_val + self.epsilon)
+                        z_fallback = 0.6745 * (series - med_val) / (std_val + self.epsilon)
                         z_series = z_series.fillna(z_fallback)
                     else:
-                        mean_val = svc_stats.get(sig, {}).get("mean", 50.0)
+                        med_val = svc_stats.get(sig, {}).get("mean", 50.0)
                         std_val = svc_stats.get(sig, {}).get("std", 10.0)
-                        z_series = (series - mean_val) / (std_val + self.epsilon)
+                        z_series = 0.6745 * (series - med_val) / (std_val + self.epsilon)
 
-                    # Clip extreme infinite outliers for numerical stability
+                    # Clip extreme outliers for numerical stability
                     z_series = np.clip(z_series.astype(float), -10.0, 10.0)
                     z_df[sig] = z_series
 
