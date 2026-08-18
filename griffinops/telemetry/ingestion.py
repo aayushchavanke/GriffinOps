@@ -179,13 +179,41 @@ class TelemetryIngestor:
                 
                 df_dict = {
                     "timestamp": timestamps,
-                    "latency_ms": [latest["latency_ms"] + random.gauss(0, 5) for _ in range(sequence_length)],
-                    "traffic_rps": [10.0 + random.gauss(0, 1) for _ in range(sequence_length)],
+                    "latency_ms": [max(5.0, latest["latency_ms"] + random.gauss(0, 4)) for _ in range(sequence_length)],
+                    "traffic_rps": [max(1.0, 10.0 + random.gauss(0, 1)) for _ in range(sequence_length)],
                     "error_rate": [latest["error_rate"] for _ in range(sequence_length)],
                     "cpu_percent": [latest["cpu_percent"] for _ in range(sequence_length)],
                     "memory_percent": [latest["memory_percent"] for _ in range(sequence_length)]
                 }
                 telemetry_by_service[name] = pd.DataFrame(df_dict)
+
+        if hasattr(routes, "api_key_manager") and routes.api_key_manager and routes.api_key_manager.keys:
+            for k, info in routes.api_key_manager.keys.items():
+                if info.get("status") == "ACTIVE":
+                    name = info.get("assigned_service", "api-service")
+                    if name not in telemetry_by_service:
+                        lat = info.get("latest_latency_ms", 45.0)
+                        df_dict = {
+                            "timestamp": timestamps,
+                            "latency_ms": [max(5.0, lat + random.gauss(0, 3)) for _ in range(sequence_length)],
+                            "traffic_rps": [max(0.0, float(info.get("requests_total", 0)) + random.gauss(0, 1)) for _ in range(sequence_length)],
+                            "error_rate": [0.0 for _ in range(sequence_length)],
+                            "cpu_percent": [35.0 + random.gauss(0, 2) for _ in range(sequence_length)],
+                            "memory_percent": [42.0 for _ in range(sequence_length)]
+                        }
+                        telemetry_by_service[name] = pd.DataFrame(df_dict)
+
+        # Apply active fault injection to target service if present
+        if active_fault and telemetry_by_service:
+            target = active_fault.get("target_service")
+            if target and target in telemetry_by_service:
+                df = telemetry_by_service[target]
+                mult = active_fault.get("latency_multiplier", 3.5)
+                df["latency_ms"] = df["latency_ms"] * mult
+                if "cpu_spike_percent" in active_fault:
+                    df["cpu_percent"] = active_fault["cpu_spike_percent"]
+                if "error_rate_spike" in active_fault:
+                    df["error_rate"] = active_fault["error_rate_spike"]
 
         return telemetry_by_service
 

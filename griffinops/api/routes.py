@@ -1,4 +1,5 @@
 import os
+import time
 from fastapi import APIRouter, HTTPException, Header, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -9,7 +10,6 @@ from griffinops.telemetry.real_website_monitor import RealWebsiteMonitor
 from griffinops.reports.docx_generator import DOCXReportGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["GriffinOps Enterprise API"])
-dummy_router = APIRouter(prefix="/dummy-store", tags=["Dummy E-Commerce Application Backend"])
 
 # Singletons
 telemetry_ingestor = None
@@ -19,7 +19,6 @@ rca_engine = None
 fault_simulator = None
 notifier = None
 api_key_manager = None
-dummy_app = None
 watchdog = None
 pdf_generator = None
 supabase_auth = SupabaseAuthEngine()
@@ -44,6 +43,9 @@ class ProfileUpdateRequest(BaseModel):
 
 class CreateAPIKeyRequest(BaseModel):
     name: str
+    endpoint: Optional[str] = "/api/v1/checkout"
+    sla_latency_ms: Optional[float] = 200.0
+    sla_tier: Optional[str] = "Payment ($850/min)"
     environment: Optional[str] = "production"
     target_url: Optional[str] = "https://httpbin.org/get"
 
@@ -126,17 +128,29 @@ class EmailConfigRequest(BaseModel):
     brevo_api_key: Optional[str] = None
     resend_api_key: Optional[str] = None
 
+USER_PROFILE_STATE = {
+    "user_id": "usr_admin001",
+    "email": "griffinops26@gmail.com",
+    "name": "SRE Lead Engineer",
+    "role": "CHIEF SRE ARCHITECT",
+    "organization": "SIES GST AI & Data Science Team",
+    "email_alerts_enabled": True,
+    "developer_emails": ["griffinops26@gmail.com", "sre-dev@sies.edu"],
+    "assigned_services_count": 6
+}
+
 @router.get("/user/profile")
 def get_user_profile():
     email_status = notifier.get_config_status() if notifier else {}
+    dev_emails = watchdog.registered_developer_emails if watchdog and watchdog.registered_developer_emails else USER_PROFILE_STATE["developer_emails"]
     return {
-        "user_id": "usr_admin001",
+        "user_id": USER_PROFILE_STATE["user_id"],
         "email": "griffinops26@gmail.com",
-        "name": "SRE Lead Engineer",
-        "role": "CHIEF SRE ARCHITECT",
-        "organization": "SIES GST AI & Data Science Team",
-        "email_alerts_enabled": True,
-        "developer_emails": watchdog.registered_developer_emails if watchdog else ["griffinops26@gmail.com", "sre-dev@sies.edu"],
+        "name": USER_PROFILE_STATE["name"],
+        "role": USER_PROFILE_STATE["role"],
+        "organization": USER_PROFILE_STATE["organization"],
+        "email_alerts_enabled": USER_PROFILE_STATE["email_alerts_enabled"],
+        "developer_emails": dev_emails,
         "assigned_services_count": 6,
         "email_config": email_status
     }
@@ -151,9 +165,13 @@ def serve_email_preview(filename: str):
 
 @router.put("/user/profile")
 def update_user_profile(req: ProfileUpdateRequest):
+    USER_PROFILE_STATE["name"] = req.name
+    USER_PROFILE_STATE["organization"] = req.organization
+    USER_PROFILE_STATE["developer_emails"] = req.developer_emails
+    USER_PROFILE_STATE["email_alerts_enabled"] = req.email_alerts_enabled
     if watchdog:
         watchdog.registered_developer_emails = req.developer_emails
-    return {"status": "SUCCESS", "message": "User profile & automated email notification settings updated."}
+    return {"status": "SUCCESS", "message": "User profile & automated email notification settings updated.", "profile": USER_PROFILE_STATE}
 
 @router.get("/user/email-config")
 def get_email_config():
@@ -209,8 +227,14 @@ def list_api_keys():
 
 @router.post("/keys/create")
 def create_api_key(req: CreateAPIKeyRequest):
-    new_key = api_key_manager.generate_api_key(name=req.name, environment=req.environment, target_url=req.target_url)
-    # Register target URL with real website monitor for live pings
+    new_key = api_key_manager.generate_api_key(
+        name=req.name,
+        environment=req.environment or "production",
+        endpoint=req.endpoint or "/api/v1/checkout",
+        sla_latency_ms=req.sla_latency_ms or 200.0,
+        sla_tier=req.sla_tier or "Payment ($850/min)",
+        target_url=req.target_url or "https://httpbin.org/get"
+    )
     if req.target_url and real_website_monitor:
         real_website_monitor.add_monitored_site(name=req.name, url=req.target_url, site_type="User API Key Target")
     return new_key
@@ -254,8 +278,15 @@ def get_monitored_apis():
 
 # --- REAL LIVE WEBSITE MONITORING ROUTES ---
 @router.post("/real-monitor/targets")
+@router.post("/real-monitor/add-site")
 def add_real_website_target(req: AddRealSiteRequest):
     site = real_website_monitor.add_monitored_site(name=req.name, url=req.url, site_type=req.site_type or "Live Web App")
+    # Trigger immediate ping so metrics are available immediately
+    if real_website_monitor:
+        try:
+            real_website_monitor.ping_all_sites()
+        except Exception:
+            pass
     return {"status": "ADDED", "target": site}
 
 @router.get("/real-monitor/targets")
@@ -296,33 +327,99 @@ def get_real_website_live_metrics():
 
 # --- AI ILLUSTRATIONS & API SUGGESTIONS ---
 @router.get("/illustrations/details")
-def get_api_illustrations(api_endpoint: str = "/api/checkout"):
-    return rca_engine.get_api_illustrations_and_suggestions(api_endpoint)
+def get_api_illustrations(api_endpoint: str = "https://httpbin.org/get"):
+    live_latency = None
+    live_status = 200
+    payload_bytes = 256
+    live_z = None
+
+    # Check real website monitor history
+    if real_website_monitor:
+        for url, site in real_website_monitor.sites.items() if isinstance(real_website_monitor.sites, dict) else [(s["url"], s) for s in real_website_monitor.sites]:
+            if url == api_endpoint or api_endpoint in url or site["name"].lower() in api_endpoint.lower():
+                if url in real_website_monitor.history and real_website_monitor.history[url]:
+                    latest = real_website_monitor.history[url][-1]
+                    live_latency = latest.get("latency_ms")
+                    live_status = latest.get("status_code", 200)
+                    payload_bytes = latest.get("payload_bytes", 256)
+                break
+
+    # Check registered API keys
+    if live_latency is None and api_key_manager:
+        for k, info in api_key_manager.keys.items():
+            if info.get("endpoint") == api_endpoint or info.get("assigned_service") in api_endpoint:
+                live_latency = info.get("latest_latency_ms", 45.0)
+                break
+
+    if live_latency is None:
+        live_latency = 48.0
+
+    return rca_engine.get_api_illustrations_and_suggestions(
+        api_endpoint=api_endpoint,
+        live_latency_ms=live_latency,
+        status_code=live_status,
+        payload_bytes=payload_bytes,
+        z_score=live_z
+    )
 
 # --- TELEMETRY & TCN PREDICTION ROUTES ---
 @router.get("/health")
 def get_health():
+    services_count = len(real_website_monitor.sites) if real_website_monitor else 0
     return {
         "status": "ONLINE",
         "engine": "GriffinOps Enterprise AI SRE Copilot",
         "version": "2.3.0",
-        "services_monitored": 6,
+        "services_monitored": services_count,
         "supabase_auth": supabase_auth.is_supabase_configured,
         "watchdog_active": watchdog.is_running if watchdog else False
     }
 
 @router.get("/telemetry/live")
 def get_live_telemetry():
-    active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
-    telemetry = telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
-    z_scores = normalizer.compute_z_scores(telemetry)
+    telemetry = {}
+    
+    # 1. Collect real live network telemetry from RealWebsiteMonitor
+    if real_website_monitor:
+        real_website_monitor.ping_all_sites()
+        real_tel = real_website_monitor.get_all_real_telemetry()
+        for svc_name, df in real_tel.items():
+            if not df.empty:
+                telemetry[svc_name] = df.copy()
+
+    # 2. Collect from SigNoz if available
+    if not telemetry and telemetry_ingestor:
+        signoz_data = telemetry_ingestor.fetch_signoz_metrics(int(time.time()) - 300, int(time.time()))
+        if signoz_data:
+            telemetry = signoz_data
+
+    # 3. Apply active chaos fault if injected
+    if fault_simulator:
+        status = fault_simulator.get_status()
+        if status.get("is_active"):
+            fault = status.get("fault", {})
+            target = fault.get("target_service")
+            if target and target in telemetry:
+                df = telemetry[target]
+                mult = fault.get("latency_multiplier", 3.5)
+                df["latency_ms"] = df["latency_ms"] * mult
+                if "error_rate_spike" in fault:
+                    df["error_rate"] = fault["error_rate_spike"]
+            elif telemetry:
+                first_k = list(telemetry.keys())[0]
+                df = telemetry[first_k]
+                mult = fault.get("latency_multiplier", 3.5)
+                df["latency_ms"] = df["latency_ms"] * mult
+                if "error_rate_spike" in fault:
+                    df["error_rate"] = fault["error_rate_spike"]
+
+    z_scores = normalizer.compute_z_scores(telemetry) if telemetry else {}
     
     result = {}
-    for svc in telemetry.keys():
-        raw_df = telemetry[svc]
-        z_df = z_scores[svc]
+    for svc, raw_df in telemetry.items():
+        z_df = z_scores.get(svc, raw_df)
         result[svc] = {
-            "timestamps": raw_df["timestamp"].tolist(),
+            "timestamps": raw_df["timestamp"].tolist() if "timestamp" in raw_df.columns else [],
             "raw": {col: raw_df[col].tolist() for col in raw_df.columns if col != "timestamp"},
             "z_scores": {col: z_df[col].tolist() for col in z_df.columns if col != "timestamp"}
         }
@@ -330,31 +427,127 @@ def get_live_telemetry():
 
 @router.get("/forecast")
 def get_tcn_forecast():
-    active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
-    telemetry = telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
+    telemetry = {}
+    if real_website_monitor:
+        real_tel = real_website_monitor.get_all_real_telemetry()
+        for svc_name, df in real_tel.items():
+            if not df.empty:
+                telemetry[svc_name] = df.copy()
+
+    if fault_simulator:
+        status = fault_simulator.get_status()
+        if status.get("is_active"):
+            fault = status.get("fault", {})
+            target = fault.get("target_service")
+            if target and target in telemetry:
+                df = telemetry[target]
+                mult = fault.get("latency_multiplier", 3.5)
+                df["latency_ms"] = df["latency_ms"] * mult
+                if "error_rate_spike" in fault:
+                    df["error_rate"] = fault["error_rate_spike"]
+
+    if not telemetry:
+        return {"services": {}}
+
     z_scores = normalizer.compute_z_scores(telemetry)
-    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=30)
+    min_len = min([len(df) for df in telemetry.values()])
+    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=min(30, max(5, min_len)))
+    if tensor is None or len(service_names) == 0:
+        return {"services": {}}
     return tcn_predictor.predict(tensor, service_names=service_names)
 
 @router.get("/topology")
 def get_topology():
+    active_svcs = {}
+
+    # 1. Discover from Real Website Monitor
+    if real_website_monitor and real_website_monitor.sites:
+        for url, site in real_website_monitor.sites.items():
+            slug = site["name"].lower().replace(" ", "-").replace("/", "-")
+            lat = 40.0
+            status_code = 200
+            if url in real_website_monitor.history and real_website_monitor.history[url]:
+                latest = real_website_monitor.history[url][-1]
+                lat = latest.get("latency_ms", 40.0)
+                status_code = latest.get("status_code", 200)
+
+            is_anomaly = lat > 250.0 or status_code >= 400
+            active_svcs[slug] = {
+                "id": slug,
+                "label": site["name"],
+                "status": "HAZARD" if is_anomaly else "HEALTHY",
+                "anomaly_score": 3.8 if is_anomaly else 0.3,
+                "latency_ms": lat,
+                "type": site.get("type", "Live Target")
+            }
+
+    # 2. Discover from API Key Manager
+    if api_key_manager and api_key_manager.keys:
+        for k, info in api_key_manager.keys.items():
+            if info.get("status") == "ACTIVE":
+                slug = info.get("assigned_service", "custom-api")
+                if slug not in active_svcs:
+                    lat = info.get("latest_latency_ms", 45.0)
+                    active_svcs[slug] = {
+                        "id": slug,
+                        "label": info.get("name", slug),
+                        "status": "HEALTHY",
+                        "anomaly_score": 0.2,
+                        "latency_ms": lat,
+                        "type": "API Service"
+                    }
+
+    # Check if fault simulator injected a fault on any service
+    if fault_simulator:
+        status = fault_simulator.get_status()
+        if status.get("is_active"):
+            fault = status.get("fault", {})
+            target = fault.get("target_service")
+            if target and target in active_svcs:
+                active_svcs[target]["status"] = "HAZARD"
+                active_svcs[target]["anomaly_score"] = 4.2
+            elif active_svcs:
+                first_k = list(active_svcs.keys())[0]
+                active_svcs[first_k]["status"] = "HAZARD"
+                active_svcs[first_k]["anomaly_score"] = 4.2
+
+    nodes = list(active_svcs.values())
+    edges = []
+
+    # Generate causal dependency edges dynamically
+    if len(nodes) > 1:
+        primary = nodes[0]["id"]
+        for other in nodes[1:]:
+            lag_val = round(abs(other.get("latency_ms", 50.0) - nodes[0].get("latency_ms", 30.0)) + 15.0, 1)
+            edges.append({
+                "source": primary,
+                "target": other["id"],
+                "lag_ms": int(lag_val)
+            })
+
+    return {"nodes": nodes, "edges": edges}
+
+@router.get("/developer/dashboard")
+def get_developer_dashboard(authorization: Optional[str] = Header(None)):
+    user = supabase_auth.verify_token(authorization) if authorization else None
+    user_email = user["email"] if user else "developer@company.com"
+
+    all_keys = api_key_manager.list_api_keys()
+    user_keys = [k for k in all_keys if k.get("status") == "ACTIVE"]
+
+    monitored_apis = api_key_manager.get_monitored_apis()
+    live_status = get_real_website_live_metrics() if real_website_monitor else {}
+
     return {
-        "nodes": [
-            {"id": "frontend-service", "label": "Frontend Service", "type": "api_gateway"},
-            {"id": "cartservice", "label": "Cart Service", "type": "microservice"},
-            {"id": "checkoutservice", "label": "Checkout Service", "type": "microservice"},
-            {"id": "paymentservice", "label": "Payment Service", "type": "microservice"},
-            {"id": "recommendationservice", "label": "Recommendation Service", "type": "microservice"},
-            {"id": "adservice", "label": "Ad Service", "type": "microservice"}
-        ],
-        "edges": [
-            {"source": "frontend-service", "target": "cartservice"},
-            {"source": "frontend-service", "target": "checkoutservice"},
-            {"source": "frontend-service", "target": "recommendationservice"},
-            {"source": "frontend-service", "target": "adservice"},
-            {"source": "checkoutservice", "target": "paymentservice"},
-            {"source": "checkoutservice", "target": "cartservice"}
-        ]
+        "status": "ONLINE",
+        "developer": {
+            "email": user_email,
+            "supabase_auth": supabase_auth.is_supabase_configured,
+            "active_api_keys_count": len(user_keys)
+        },
+        "developer_api_keys": user_keys,
+        "monitored_apis": monitored_apis,
+        "live_telemetry_status": live_status
     }
 
 # --- FAULT SIMULATOR & AUDIT REPORT ROUTES ---
@@ -415,24 +608,3 @@ def trigger_slack_alert():
 def trigger_email_alert(req: EmailAlertRequest):
     report = get_latest_audit_report()
     return notifier.send_email_notification(report, recipient_email=req.recipient_email)
-
-# --- DUMMY STORE ROUTES ---
-@dummy_router.get("/products")
-def dummy_products():
-    return dummy_app.handle_products_request()
-
-@dummy_router.post("/cart")
-def dummy_cart():
-    return dummy_app.handle_cart_request()
-
-@dummy_router.post("/checkout")
-def dummy_checkout():
-    return dummy_app.handle_checkout_request()
-
-@dummy_router.post("/payment")
-def dummy_payment():
-    return dummy_app.handle_payment_request()
-
-@dummy_router.get("/recommendations")
-def dummy_recommendations():
-    return dummy_app.handle_recommendation_request()

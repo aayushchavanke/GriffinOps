@@ -5,8 +5,26 @@ import hashlib
 import uuid
 from typing import Optional, Dict
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+def load_env_file():
+    env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    if key.strip() not in os.environ:
+                        os.environ[key.strip()] = val.strip()
+
+load_env_file()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://jxdsgzwdwoscyqrowsde.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
+SUPABASE_HOST = os.getenv("SUPABASE_HOST", "db.jxdsgzwdwoscyqrowsde.supabase.co")
+SUPABASE_PORT = os.getenv("SUPABASE_PORT", "5432")
+SUPABASE_DB = os.getenv("SUPABASE_DB", "postgres")
+SUPABASE_USER = os.getenv("SUPABASE_USER", "postgres")
+SUPABASE_PASSWORD = os.getenv("SUPABASE_PASSWORD", "")
 
 # In-memory user & session store for local zero-config fallback
 LOCAL_USERS_DB: Dict[str, dict] = {

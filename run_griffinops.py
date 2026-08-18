@@ -2,9 +2,16 @@ import os
 import sys
 import uvicorn
 
+# Configure Windows stdout encoding to UTF-8
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 def main():
     print("=" * 70)
-    print(" 🦅 GriffinOps: Autonomous AI SRE Copilot Platform")
+    print(" [GriffinOps] Autonomous AI SRE Copilot Platform")
     print(" Predictive Observability, TCN Forecasting & Causal RCA")
     print(" SIES GST - AI & Data Science Team")
     print("=" * 70)
