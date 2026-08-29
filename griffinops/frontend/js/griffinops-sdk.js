@@ -24,19 +24,10 @@
 
   function sendTelemetry(extraData) {
     const navEntries = performance.getEntriesByType('navigation');
-    const loadTimeMs = navEntries.length > 0 ? Math.round(navEntries[0].duration) : 120;
+    const loadTimeMs = navEntries.length > 0 ? Math.max(1.0, Math.round(navEntries[0].duration)) : 42.0;
+    const cleanUrl = window.location.href.split('#')[0];
     
-    const payload = {
-      api_key: apiKey,
-      site_url: window.location.href,
-      page_title: document.title,
-      latency_ms: loadTimeMs,
-      timestamp: Math.floor(Date.now() / 1000),
-      user_agent: navigator.userAgent,
-      status_code: 200,
-      extra: extraData || null
-    };
-
+    // 1. Auto-register site target in GriffinOps
     fetch(`${serverUrl}/api/v1/real-monitor/add-site`, {
       method: 'POST',
       headers: {
@@ -45,8 +36,24 @@
       },
       body: JSON.stringify({
         name: document.title || 'Hosted Web Application',
-        url: window.location.href,
-        site_type: 'Hosted Web App'
+        url: cleanUrl,
+        site_type: window.location.protocol === 'file:' ? 'Local Web Document' : 'Hosted Web App'
+      })
+    }).catch(() => {});
+
+    // 2. Ingest real measured browser latency into GriffinOps
+    fetch(`${serverUrl}/api/v1/telemetry/ingest`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-GriffinOps-API-Key': apiKey
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        endpoint: cleanUrl,
+        latency_ms: loadTimeMs,
+        status_code: 200,
+        payload_bytes: 4096
       })
     }).catch(() => {});
   }

@@ -6,7 +6,7 @@
   <title>GriffinOps — Autonomous Predictive Observability & SRE Copilot</title>
   <meta name="description" content="Predictive failure forecasting powered by PyTorch TCN, LagRCA, and Granger Causality in an ethereal glassmorphism UI.">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=2.4.0">
 </head>
 <body>
 
@@ -536,15 +536,29 @@
         </div>
         <button class="btn btn-secondary btn-sm" onclick="copyGeneratedKeyText()">Copy Key</button>
       </div>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Stream white-box telemetry into GriffinOps using the dynamically populated snippet:</p>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Stream real-time telemetry into GriffinOps using your preferred snippet:</p>
       <div class="auth-tabs" style="margin-bottom:12px;">
-        <button class="auth-tab-btn active" id="modal-btn-python" onclick="switchModalSnippetTab('python')">Python</button>
+        <button class="auth-tab-btn active" id="modal-btn-html" onclick="switchModalSnippetTab('html')">HTML &lt;script&gt;</button>
+        <button class="auth-tab-btn" id="modal-btn-python" onclick="switchModalSnippetTab('python')">Python</button>
         <button class="auth-tab-btn" id="modal-btn-js" onclick="switchModalSnippetTab('js')">Node.js</button>
         <button class="auth-tab-btn" id="modal-btn-curl" onclick="switchModalSnippetTab('curl')">cURL</button>
       </div>
-      <pre id="modal-code-box-python" class="snippet-pre" style="color:#a5b4fc;"></pre>
-      <pre id="modal-code-box-js" class="snippet-pre" style="display:none;color:#93c5fd;"></pre>
-      <pre id="modal-code-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;"></pre>
+      <pre id="modal-code-box-html" class="snippet-pre" style="color:#6ee7b7;"><!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->
+<script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="gop_live_demo"></script></pre>
+      <pre id="modal-code-box-python" class="snippet-pre" style="display:none;color:#a5b4fc;">import requests
+
+headers = {"X-GriffinOps-API-Key": "gop_live_demo"}
+requests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 125.4, "status_code": 200})</pre>
+      <pre id="modal-code-box-js" class="snippet-pre" style="display:none;color:#93c5fd;">const axios = require('axios');
+
+axios.post('http://localhost:8000/api/v1/telemetry/ingest', 
+  { latency_ms: 125.4, status_code: 200 }, 
+  { headers: { 'X-GriffinOps-API-Key': 'gop_live_demo' } }
+);</pre>
+      <pre id="modal-code-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;">curl -X POST "http://localhost:8000/api/v1/telemetry/ingest" \
+  -H "X-GriffinOps-API-Key: gop_live_demo" \
+  -H "Content-Type: application/json" \
+  -d '{"latency_ms": 125.4, "status_code": 200}'</pre>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="copyModalActiveSnippet()">Copy Code</button>
         <button class="btn btn-primary" onclick="closeCreateKeyModal()">Done</button>
@@ -561,13 +575,27 @@
       <button class="close-btn" onclick="closeSDKEmbedModal()">&times;</button>
     </div>
     <div class="auth-tabs" style="margin-bottom:12px;">
-      <button class="auth-tab-btn active" id="btn-snippet-python" onclick="switchSnippetTab('python')">Python</button>
+      <button class="auth-tab-btn active" id="btn-snippet-html" onclick="switchSnippetTab('html')">HTML &lt;script&gt;</button>
+      <button class="auth-tab-btn" id="btn-snippet-python" onclick="switchSnippetTab('python')">Python</button>
       <button class="auth-tab-btn" id="btn-snippet-js" onclick="switchSnippetTab('js')">Node.js</button>
       <button class="auth-tab-btn" id="btn-snippet-curl" onclick="switchSnippetTab('curl')">cURL</button>
     </div>
-    <pre id="snippet-box-python" class="snippet-pre" style="color:#a5b4fc;"></pre>
-    <pre id="snippet-box-js" class="snippet-pre" style="display:none;color:#93c5fd;"></pre>
-    <pre id="snippet-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;"></pre>
+    <pre id="snippet-box-html" class="snippet-pre" style="color:#6ee7b7;"><!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->
+<script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="gop_live_demo"></script></pre>
+    <pre id="snippet-box-python" class="snippet-pre" style="display:none;color:#a5b4fc;">import requests
+
+headers = {"X-GriffinOps-API-Key": "gop_live_demo"}
+requests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 125.4, "status_code": 200})</pre>
+    <pre id="snippet-box-js" class="snippet-pre" style="display:none;color:#93c5fd;">const axios = require('axios');
+
+axios.post('http://localhost:8000/api/v1/telemetry/ingest', 
+  { latency_ms: 125.4, status_code: 200 }, 
+  { headers: { 'X-GriffinOps-API-Key': 'gop_live_demo' } }
+);</pre>
+    <pre id="snippet-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;">curl -X POST "http://localhost:8000/api/v1/telemetry/ingest" \
+  -H "X-GriffinOps-API-Key: gop_live_demo" \
+  -H "Content-Type: application/json" \
+  -d '{"latency_ms": 125.4, "status_code": 200}'</pre>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="copyActiveSnippet()">Copy Code</button>
       <button class="btn btn-primary" onclick="closeSDKEmbedModal()">Done</button>
@@ -590,8 +618,8 @@
       <input type="text" id="real-site-name" placeholder="e.g. My Production Web App">
     </div>
     <div class="form-group">
-      <label>Live URL to Ping</label>
-      <input type="url" id="real-site-url" placeholder="https://httpbin.org/get">
+      <label>Live URL / Endpoint</label>
+      <input type="text" id="real-site-url" placeholder="https://api.myapp.com/health or http://localhost:3000">
     </div>
     <div class="form-group">
       <label>Endpoint Category</label>

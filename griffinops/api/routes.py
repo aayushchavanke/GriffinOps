@@ -467,8 +467,11 @@ def get_topology():
 
     # 1. Discover from Real Website Monitor
     if real_website_monitor and real_website_monitor.sites:
-        for url, site in real_website_monitor.sites.items():
-            slug = site["name"].lower().replace(" ", "-").replace("/", "-")
+        sites_list = real_website_monitor.sites if isinstance(real_website_monitor.sites, list) else list(real_website_monitor.sites.values())
+        for site in sites_list:
+            url = site.get("url", "")
+            name = site.get("name", "Monitored Site")
+            slug = name.lower().replace(" ", "-").replace("/", "-")
             lat = 40.0
             status_code = 200
             if url in real_website_monitor.history and real_website_monitor.history[url]:
@@ -479,7 +482,7 @@ def get_topology():
             is_anomaly = lat > 250.0 or status_code >= 400
             active_svcs[slug] = {
                 "id": slug,
-                "label": site["name"],
+                "label": name,
                 "status": "HAZARD" if is_anomaly else "HEALTHY",
                 "anomaly_score": 3.8 if is_anomaly else 0.3,
                 "latency_ms": lat,

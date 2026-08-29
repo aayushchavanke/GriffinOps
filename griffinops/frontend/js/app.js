@@ -1199,8 +1199,15 @@ async function submitCreateAPIKey() {
       if (typeof fetchAPIKeys === "function") fetchAPIKeys();
       if (typeof fetchMonitoredAPIs === "function") fetchMonitoredAPIs();
 
+      const stepForm = document.getElementById("key-modal-step-form");
+      const stepSuccess = document.getElementById("key-modal-step-success");
+      if (stepForm) stepForm.style.display = "none";
+      if (stepSuccess) stepSuccess.style.setProperty("display", "block", "important");
+
       const keyTag = document.getElementById("modal-generated-key");
-      if (keyTag) keyTag.innerText = currentGeneratedKey;
+      if (keyTag) keyTag.textContent = currentGeneratedKey;
+
+      const htmlScript = `<!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${currentGeneratedKey}"></script>`;
 
       const pythonReq = `import requests
 
@@ -1219,16 +1226,12 @@ axios.post('${window.location.origin}/api/v1/telemetry/ingest',
   -H "Content-Type: application/json" \\
   -d '{"latency_ms": 125.4, "status_code": 200}'`;
 
-      if (document.getElementById("modal-code-box-python")) document.getElementById("modal-code-box-python").innerText = pythonReq;
-      if (document.getElementById("modal-code-box-js")) document.getElementById("modal-code-box-js").innerText = jsFetch;
-      if (document.getElementById("modal-code-box-curl")) document.getElementById("modal-code-box-curl").innerText = curlCmd;
+      if (document.getElementById("modal-code-box-html")) document.getElementById("modal-code-box-html").textContent = htmlScript;
+      if (document.getElementById("modal-code-box-python")) document.getElementById("modal-code-box-python").textContent = pythonReq;
+      if (document.getElementById("modal-code-box-js")) document.getElementById("modal-code-box-js").textContent = jsFetch;
+      if (document.getElementById("modal-code-box-curl")) document.getElementById("modal-code-box-curl").textContent = curlCmd;
 
-      switchModalSnippetTab('python');
-
-      const stepForm = document.getElementById("key-modal-step-form");
-      const stepSuccess = document.getElementById("key-modal-step-success");
-      if (stepForm) stepForm.style.display = "none";
-      if (stepSuccess) stepSuccess.style.display = "block";
+      switchModalSnippetTab('html');
     } else {
       const errData = await resp.json().catch(() => ({}));
       showToast(`❌ Failed to generate key: ${errData.detail || "Server error"}`);
@@ -1247,16 +1250,16 @@ function copyGeneratedKeyText() {
 
 function switchModalSnippetTab(tab) {
   activeModalSnippetTab = tab;
-  ['python', 'js', 'curl'].forEach(t => {
+  ['html', 'python', 'js', 'curl'].forEach(t => {
     const btn = document.getElementById(`modal-btn-${t}`);
     const box = document.getElementById(`modal-code-box-${t}`);
     if (btn) btn.classList.remove("active");
-    if (box) box.style.display = "none";
+    if (box) box.style.setProperty("display", "none", "important");
   });
   const activeBtn = document.getElementById(`modal-btn-${tab}`);
   const activeBox = document.getElementById(`modal-code-box-${tab}`);
   if (activeBtn) activeBtn.classList.add("active");
-  if (activeBox) activeBox.style.display = "block";
+  if (activeBox) activeBox.style.setProperty("display", "block", "important");
 }
 
 function copyModalActiveSnippet() {
@@ -1320,14 +1323,14 @@ function startDynamicCountdown(initialSeconds = 240) {
 }
 
 let activeSDKApiKey = "";
-let activeSnippetTab = "python";
+let activeSnippetTab = "html";
 
 function openSDKEmbedModal(apiKey) {
   if (apiKey) activeSDKApiKey = apiKey;
   const modal = document.getElementById("sdk-embed-modal");
   if (modal) modal.style.display = "flex";
-  switchSnippetTab("python");
   renderSnippets();
+  switchSnippetTab("html");
 }
 
 function closeSDKEmbedModal() {
@@ -1337,19 +1340,21 @@ function closeSDKEmbedModal() {
 
 function switchSnippetTab(tab) {
   activeSnippetTab = tab;
-  ['script', 'js', 'python', 'curl'].forEach(t => {
+  ['html', 'python', 'js', 'curl'].forEach(t => {
     const btn = document.getElementById(`btn-snippet-${t}`);
     const box = document.getElementById(`snippet-box-${t}`);
     if (btn) btn.classList.remove("active");
-    if (box) box.style.display = "none";
+    if (box) box.style.setProperty("display", "none", "important");
   });
   const activeBtn = document.getElementById(`btn-snippet-${tab}`);
   const activeBox = document.getElementById(`snippet-box-${tab}`);
   if (activeBtn) activeBtn.classList.add("active");
-  if (activeBox) activeBox.style.display = "block";
+  if (activeBox) activeBox.style.setProperty("display", "block", "important");
 }
 
 function renderSnippets() {
+  const scriptTag = `<!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${activeSDKApiKey}"></script>`;
+
   const pythonReq = `import requests
 
 headers = {"X-GriffinOps-API-Key": "${activeSDKApiKey}"}
@@ -1362,17 +1367,15 @@ axios.post('${window.location.origin}/api/v1/telemetry/ingest',
   { headers: { 'X-GriffinOps-API-Key': '${activeSDKApiKey}' } }
 );`;
 
-  const scriptTag = `<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${activeSDKApiKey}"></script>`;
-
   const curlCmd = `curl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\
   -H "X-GriffinOps-API-Key: ${activeSDKApiKey}" \\
   -H "Content-Type: application/json" \\
   -d '{"latency_ms": 125.4, "status_code": 200}'`;
 
-  if (document.getElementById("snippet-box-python")) document.getElementById("snippet-box-python").innerText = pythonReq;
-  if (document.getElementById("snippet-box-js")) document.getElementById("snippet-box-js").innerText = jsFetch;
-  if (document.getElementById("snippet-box-script")) document.getElementById("snippet-box-script").innerText = scriptTag;
-  if (document.getElementById("snippet-box-curl")) document.getElementById("snippet-box-curl").innerText = curlCmd;
+  if (document.getElementById("snippet-box-html")) document.getElementById("snippet-box-html").textContent = scriptTag;
+  if (document.getElementById("snippet-box-python")) document.getElementById("snippet-box-python").textContent = pythonReq;
+  if (document.getElementById("snippet-box-js")) document.getElementById("snippet-box-js").textContent = jsFetch;
+  if (document.getElementById("snippet-box-curl")) document.getElementById("snippet-box-curl").textContent = curlCmd;
 }
 
 function copyActiveSnippet() {
