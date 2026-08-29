@@ -1,3 +1,0 @@
-"""
-GriffinOps PyTorch Models Package
-"""

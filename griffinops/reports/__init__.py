@@ -1,3 +1,0 @@
-"""
-GriffinOps PDF Reports Package
-"""

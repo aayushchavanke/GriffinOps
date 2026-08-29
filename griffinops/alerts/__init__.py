@@ -1,3 +1,0 @@
-"""
-GriffinOps Alerting Package
-"""

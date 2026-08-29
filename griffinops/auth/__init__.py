@@ -1,3 +1,0 @@
-"""
-GriffinOps Authentication Package
-"""

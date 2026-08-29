@@ -1,3 +1,0 @@
-"""
-GriffinOps FastAPI API Package
-"""
