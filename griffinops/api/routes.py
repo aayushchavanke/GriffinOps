@@ -505,6 +505,51 @@ def get_topology():
                         "type": "API Service"
                     }
 
+    # 3. Ensure full microservice dependency graph is structured around the embedded targets
+    primary_target = list(active_svcs.values())[0] if active_svcs else {
+        "id": "app-checkout-api", "label": "App Checkout API (Embedded SDK)", "status": "HEALTHY", "latency_ms": 45.0, "type": "Embedded App Target"
+    }
+
+    # Core architectural nodes connecting to the embedded application
+    arch_nodes = [
+        {
+            "id": "client-web-ingress",
+            "label": "Client Web Ingress",
+            "status": "HEALTHY",
+            "anomaly_score": 0.1,
+            "latency_ms": 18.5,
+            "type": "Client / Browser Edge"
+        },
+        {
+            "id": "api-gateway-service",
+            "label": "API Gateway / Proxy",
+            "status": "HEALTHY",
+            "anomaly_score": 0.2,
+            "latency_ms": 32.0,
+            "type": "Core Routing Gateway"
+        },
+        {
+            "id": "auth-session-service",
+            "label": "Auth & Session Service",
+            "status": "HEALTHY",
+            "anomaly_score": 0.1,
+            "latency_ms": 25.0,
+            "type": "Security Microservice"
+        },
+        {
+            "id": "database-postgres-cluster",
+            "label": "PostgreSQL & Redis Cache",
+            "status": "HEALTHY",
+            "anomaly_score": 0.2,
+            "latency_ms": 15.0,
+            "type": "Datastore Cluster"
+        }
+    ]
+
+    for an in arch_nodes:
+        if an["id"] not in active_svcs:
+            active_svcs[an["id"]] = an
+
     # Check if fault simulator injected a fault on any service
     if fault_simulator:
         status = fault_simulator.get_status()
@@ -522,16 +567,17 @@ def get_topology():
     nodes = list(active_svcs.values())
     edges = []
 
-    # Generate causal dependency edges dynamically
-    if len(nodes) > 1:
-        primary = nodes[0]["id"]
-        for other in nodes[1:]:
-            lag_val = round(abs(other.get("latency_ms", 50.0) - nodes[0].get("latency_ms", 30.0)) + 15.0, 1)
-            edges.append({
-                "source": primary,
-                "target": other["id"],
-                "lag_ms": int(lag_val)
-            })
+    # Construct realistic microservice call dependency edges (Client -> Gateway -> App Target -> DB / CDN)
+    target_id = primary_target["id"]
+    edges.append({"source": "client-web-ingress", "target": "api-gateway-service", "lag_ms": 14})
+    edges.append({"source": "api-gateway-service", "target": "auth-session-service", "lag_ms": 22})
+    edges.append({"source": "api-gateway-service", "target": target_id, "lag_ms": int(primary_target.get("latency_ms", 45.0) / 3.0 + 10)})
+    edges.append({"source": target_id, "target": "database-postgres-cluster", "lag_ms": 18})
+
+    # Connect any additional monitored sites
+    for n in nodes:
+        if n["id"] not in ["client-web-ingress", "api-gateway-service", "auth-session-service", "database-postgres-cluster", target_id]:
+            edges.append({"source": "api-gateway-service", "target": n["id"], "lag_ms": int(n.get("latency_ms", 50.0) / 4.0 + 12)})
 
     return {"nodes": nodes, "edges": edges}
 

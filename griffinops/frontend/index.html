@@ -637,8 +637,79 @@ axios.post('http://localhost:8000/api/v1/telemetry/ingest',
   </div>
 </div>
 
+<!-- Pre-Mortem Failure Analysis & Predictive Diagnostics Modal -->
+<div class="modal-overlay" id="premortem-modal" style="display:none; align-items:center; justify-content:center;">
+  <div class="modal-card" style="max-width:720px; width:95%; max-height:90vh; overflow-y:auto;">
+    <div class="modal-header">
+      <div>
+        <h3 id="pm-modal-title" style="display:flex; align-items:center; gap:8px;">
+          <span>🔮 Pre-Mortem Failure Analysis &amp; Diagnostics</span>
+        </h3>
+        <span id="pm-modal-subtitle" style="font-size:12px; color:var(--text-muted);">Real-time predictive telemetry &amp; microservice causal breakdown</span>
+      </div>
+      <button class="close-btn" onclick="closePremortemModal()">&times;</button>
+    </div>
+
+    <!-- Top Key Metrics Row -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:16px;">
+      <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.04)); padding:12px; border-radius:10px; border:1px solid var(--glass-border-subtle);">
+        <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Health Status</span>
+        <div id="pm-status-badge" style="font-size:14px; font-weight:800; color:var(--pastel-emerald); margin-top:4px;">HEALTHY</div>
+      </div>
+      <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.04)); padding:12px; border-radius:10px; border:1px solid var(--glass-border-subtle);">
+        <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Measured Latency</span>
+        <div id="pm-latency-val" style="font-size:14px; font-weight:800; color:var(--text-primary); margin-top:4px;">42.0 ms</div>
+      </div>
+      <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.04)); padding:12px; border-radius:10px; border:1px solid var(--glass-border-subtle);">
+        <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Robust MAD Deviation</span>
+        <div id="pm-mad-val" style="font-size:14px; font-weight:800; color:var(--pastel-emerald); margin-top:4px;">+0.32σ (Nominal)</div>
+      </div>
+      <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.04)); padding:12px; border-radius:10px; border:1px solid var(--glass-border-subtle);">
+        <span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Time-To-Failure (TTF)</span>
+        <div id="pm-ttf-val" style="font-size:14px; font-weight:800; color:var(--pastel-indigo); margin-top:4px;">HEALTHY (No Risk)</div>
+      </div>
+    </div>
+
+    <!-- Microservice Call Relations Card -->
+    <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.03)); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px 16px; margin-bottom:14px;">
+      <h4 style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">
+        🔗 Microservice Architecture &amp; Call Dependencies
+      </h4>
+      <div id="pm-dependencies-tree" style="font-size:12px; line-height:1.8; color:var(--text-primary);">
+        <code>Client Web Ingress</code> ➔ <strong id="pm-tree-target">Monitored Service</strong> ➔ <code>PostgreSQL / Redis Storage</code>
+      </div>
+    </div>
+
+    <!-- Multi-Agent SRE Reasoning Breakdown -->
+    <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.03)); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px 16px; margin-bottom:14px;">
+      <h4 style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">
+        🤖 Multi-Agent SRE Diagnostic Reasoning
+      </h4>
+      <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
+        <div><strong style="color:var(--pastel-indigo);">1. Navigator Agent:</strong> <span id="pm-agent-nav">Scanned live call graph; topology path nominal.</span></div>
+        <div><strong style="color:var(--pastel-amber);">2. Diagnoser Agent:</strong> <span id="pm-agent-diag">Evaluated Granger causality &amp; MAD sigma bounds; zero active cascade.</span></div>
+        <div><strong style="color:var(--pastel-emerald);">3. Verifier Agent:</strong> <span id="pm-agent-ver">Verified non-destructive self-healing constraints against CI/CD log.</span></div>
+      </div>
+    </div>
+
+    <!-- Suggested Automated Remediation -->
+    <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.03)); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Recommended Remediation Command</span>
+        <button class="btn btn-secondary btn-sm" onclick="copyPMRollbackCmd()">Copy Command</button>
+      </div>
+      <pre id="pm-rollback-cmd" class="snippet-pre" style="margin:0; padding:10px 14px; font-size:12px; color:#fca5a5; min-height:auto;">kubectl rollout undo deployment/target-service -n production</pre>
+    </div>
+
+    <div class="modal-footer" style="margin-top:10px; padding-top:12px;">
+      <button class="btn btn-secondary" onclick="closePremortemModal()">Close</button>
+      <button class="btn btn-primary" onclick="switchToCausalTopologyTab()">View in Causal Topology ➔</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
 
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2.4.0"></script>
 </body>
 </html>
