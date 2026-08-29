@@ -31,7 +31,7 @@ class DualNotifier:
         self.slack_webhook_url = slack_webhook_url or os.getenv("SLACK_WEBHOOK_URL")
         self.smtp_host = smtp_host or os.getenv("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", str(smtp_port)))
-        self.smtp_user = smtp_user or os.getenv("SMTP_USER", "griffinops26@gmail.com")
+        self.smtp_user = smtp_user or os.getenv("SMTP_USER", "alerts@griffinops.io")
         self.smtp_pass = smtp_pass or os.getenv("SMTP_PASS")
         self.brevo_api_key = brevo_api_key or os.getenv("BREVO_API_KEY")
         self.resend_api_key = resend_api_key or os.getenv("RESEND_API_KEY")
@@ -102,7 +102,7 @@ class DualNotifier:
             "has_smtp": bool(self.smtp_host and self.smtp_user and self.smtp_pass),
             "smtp_host": self.smtp_host or "smtp.gmail.com",
             "smtp_port": self.smtp_port,
-            "smtp_user": self.smtp_user or "griffinops26@gmail.com",
+            "smtp_user": self.smtp_user or "alerts@griffinops.io",
             "active_provider": "BREVO_API" if self.brevo_api_key else ("RESEND_API" if self.resend_api_key else ("SMTP_SERVER" if (self.smtp_host and self.smtp_user and self.smtp_pass) else "LOCAL_HTML_PREVIEW"))
         }
 

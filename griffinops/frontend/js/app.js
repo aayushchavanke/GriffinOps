@@ -17,7 +17,90 @@ let kpiSparklineHistory = {}; // tracks rolling history per KPI for sparklines
 // === Inject Fault State ===
 let faultInjected = false;
 
+// === Theme State (Dark Glass vs Light Glass) ===
+let currentTheme = localStorage.getItem("gop_theme") || "dark";
+
+function initTheme() {
+  currentTheme = localStorage.getItem("gop_theme") || "dark";
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  updateThemeUI();
+}
+
+function toggleTheme() {
+  currentTheme = currentTheme === "dark" ? "light" : "dark";
+  localStorage.setItem("gop_theme", currentTheme);
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  updateThemeUI();
+  updateChartsTheme();
+  fetchTopology();
+  showToast(`✨ Switched to ${currentTheme === "dark" ? "Dark" : "Light"} Glass Mode`);
+}
+
+function updateThemeUI() {
+  const iconDark = document.getElementById("theme-icon-dark");
+  const iconLight = document.getElementById("theme-icon-light");
+  const textEl = document.getElementById("theme-toggle-text");
+  if (currentTheme === "dark") {
+    if (iconDark) iconDark.style.display = "none";
+    if (iconLight) iconLight.style.display = "inline-flex";
+    if (textEl) textEl.innerText = "Light Mode";
+  } else {
+    if (iconDark) iconDark.style.display = "inline-flex";
+    if (iconLight) iconLight.style.display = "none";
+    if (textEl) textEl.innerText = "Dark Mode";
+  }
+}
+
+function updateChartsTheme() {
+  const isLight = currentTheme === "light";
+  const gridColor = isLight ? "rgba(100, 116, 139, 0.15)" : "rgba(255, 255, 255, 0.08)";
+  const textColor = isLight ? "#64748b" : "#94a3b8";
+  const titleColor = isLight ? "#0f172a" : "#ffffff";
+
+  [liveTelemetryChart, forecastChart, illustrationForecastChart].forEach(chart => {
+    if (!chart) return;
+    if (chart.options.scales.x) {
+      chart.options.scales.x.grid.color = gridColor;
+      chart.options.scales.x.ticks.color = textColor;
+    }
+    if (chart.options.scales.y) {
+      chart.options.scales.y.grid.color = gridColor;
+      chart.options.scales.y.ticks.color = textColor;
+    }
+    if (chart.options.scales.y1) {
+      chart.options.scales.y1.ticks.color = textColor;
+    }
+    if (chart.options.plugins && chart.options.plugins.legend) {
+      chart.options.plugins.legend.labels.color = titleColor;
+    }
+    chart.update("none");
+  });
+}
+
+// === Interactive Background Halo (Mouse Tracking behind Glass Bento Boxes) ===
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+  const halo = document.getElementById("ambient-halo");
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let haloX = mouseX;
+  let haloY = mouseY;
+
+  window.addEventListener("mousemove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  function animateHalo() {
+    haloX += (mouseX - haloX) * 0.08;
+    haloY += (mouseY - haloY) * 0.08;
+    if (halo) {
+      halo.style.transform = `translate(${haloX}px, ${haloY}px) translate(-50%, -50%)`;
+    }
+    requestAnimationFrame(animateHalo);
+  }
+  requestAnimationFrame(animateHalo);
+
   if (authToken) {
     showMainApp();
   } else {
@@ -41,11 +124,19 @@ function switchAuthTab(tab) {
   }
 }
 
+async function quickDemoLogin() {
+  document.getElementById("login-email").value = "admin@griffinops.io";
+  document.getElementById("login-pass").value = "admin123";
+  await handleLogin();
+}
+
 async function handleLogin() {
-  const email = document.getElementById("login-email").value;
-  const pass = document.getElementById("login-pass").value;
+  const emailInput = document.getElementById("login-email");
+  const passInput = document.getElementById("login-pass");
+  const email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : "admin@griffinops.io";
+  const pass = (passInput && passInput.value.trim()) ? passInput.value.trim() : "admin123";
   const errDiv = document.getElementById("login-error");
-  errDiv.innerText = "";
+  if (errDiv) errDiv.innerText = "";
 
   try {
     const resp = await fetch("/api/v1/auth/login", {
@@ -279,14 +370,14 @@ async function saveProfileSettings() {
   const orgInput = document.getElementById("pref-org-name");
   const orgName = (orgInput && orgInput.value.trim()) ? orgInput.value.trim() : "SIES GST AI & Data Science Team";
 
-  showToast("💾 Saving developer alert preferences...");
+  showToast("💾 Saving notification recipient email...");
   try {
     const resp = await fetch("/api/v1/user/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: currentUser ? currentUser.name : "SRE Lead Engineer",
-        email: currentUser ? currentUser.email : "admin@griffinops.io",
+        email: emails[0] || (currentUser ? currentUser.email : "user@company.com"),
         organization: orgName,
         developer_emails: emails,
         email_alerts_enabled: enabled
@@ -295,7 +386,7 @@ async function saveProfileSettings() {
     if (resp.ok) {
       const profileOrgSpan = document.getElementById("profile-org");
       if (profileOrgSpan) profileOrgSpan.innerText = orgName;
-      showToast("✅ Developer recipient emails & profile preferences saved!");
+      showToast("✅ Notification recipient email saved successfully!");
     } else {
       showToast("❌ Failed to save preferences.");
     }
@@ -304,42 +395,10 @@ async function saveProfileSettings() {
   }
 }
 
-async function saveEmailCredentials() {
-  const smtpHost = document.getElementById("smtp-host-input").value.trim();
-  const smtpPort = parseInt(document.getElementById("smtp-port-input").value) || 587;
-  const smtpUser = document.getElementById("smtp-user-input").value.trim();
-  const smtpPass = document.getElementById("smtp-pass-input").value.trim();
-  const brevoKey = document.getElementById("brevo-key-input").value.trim();
-  const resendKey = document.getElementById("resend-key-input").value.trim();
-
-  showToast("💾 Saving email credentials & activating server...");
-  try {
-    const resp = await fetch("/api/v1/user/email-config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        smtp_host: smtpHost || null,
-        smtp_port: smtpPort,
-        smtp_user: smtpUser || null,
-        smtp_pass: smtpPass || null,
-        brevo_api_key: brevoKey || null,
-        resend_api_key: resendKey || null
-      })
-    });
-    if (resp.ok) {
-      const data = await resp.json();
-      showToast(`✅ ${data.message}`);
-      fetchUserProfile();
-    }
-  } catch (err) {
-    showToast("Error saving email credentials.");
-  }
-}
-
 async function sendTestAlertEmail() {
   const emailsRaw = document.getElementById("pref-dev-emails").value;
   const emails = emailsRaw.split(",").map(e => e.trim()).filter(e => e.length > 0);
-  const targetEmail = emails[0] || "sre-dev@sies.edu";
+  const targetEmail = emails[0] || (currentUser ? currentUser.email : "engineer@company.com");
 
   showToast(`📧 Dispatching test alert email to ${targetEmail}...`);
   try {
@@ -351,14 +410,14 @@ async function sendTestAlertEmail() {
     if (resp.ok) {
       const res = await resp.json();
       if (res.status === "DELIVERED") {
-        showToast(`🎉 DELIVERED! Email alert sent to ${targetEmail} via ${res.provider}! Check your inbox!`);
+        showToast(`🎉 Alert email sent to ${targetEmail} via ${res.provider}!`);
       } else {
-        showToast(`⚠️ Stored in local preview folder (no SMTP key configured). Enter your Gmail/SMTP credentials below to receive emails directly in your inbox!`);
+        showToast(`📋 Test alert created and logged to Alert Dispatch Log for ${targetEmail}!`);
       }
       fetchWatchdogHistory();
     }
   } catch (err) {
-    showToast("Error sending email alert.");
+    showToast("Error sending email alert: " + err.message);
   }
 }
 
@@ -391,21 +450,21 @@ function initTelemetryChart() {
     data: {
       labels: [],
       datasets: [
-        { label: "Latency (ms)", data: [], borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.06)", borderWidth: 2, tension: 0.3, yAxisID: "y" },
-        { label: "CPU Saturation (%)", data: [], borderColor: "#e11d48", backgroundColor: "rgba(225,29,72,0.06)", borderWidth: 2, tension: 0.3, yAxisID: "y1" },
-        { label: "Error Rate", data: [], borderColor: "#f43f5e", backgroundColor: "rgba(244,63,94,0.06)", borderWidth: 2, tension: 0.3, yAxisID: "y2" },
-        { label: "Memory Footprint (%)", data: [], borderColor: "#cbd5e1", backgroundColor: "rgba(203,213,225,0.06)", borderWidth: 2, tension: 0.3, yAxisID: "y1" }
+        { label: "Latency (ms)", data: [], borderColor: "#6366f1", backgroundColor: "rgba(99, 102, 241, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y" },
+        { label: "CPU Saturation (%)", data: [], borderColor: "#f43f5e", backgroundColor: "rgba(244, 63, 94, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y1" },
+        { label: "Error Rate", data: [], borderColor: "#8b5cf6", backgroundColor: "rgba(139, 92, 246, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y2" },
+        { label: "Memory Footprint (%)", data: [], borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y1" }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
-        y: { type: "linear", display: true, position: "left", title: { display: true, text: "Latency (ms)", color: "#f59e0b" }, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
-        y1: { type: "linear", display: true, position: "right", title: { display: true, text: "Resource (%)", color: "#e11d48" }, grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8" } },
+        x: { grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } },
+        y: { type: "linear", display: true, position: "left", title: { display: true, text: "Latency (ms)", color: "#6366f1" }, grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } },
+        y1: { type: "linear", display: true, position: "right", title: { display: true, text: "Resource (%)", color: "#f43f5e" }, grid: { drawOnChartArea: false }, ticks: { color: "#64748b" } },
         y2: { type: "linear", display: false, min: 0, max: 1 }
       },
-      plugins: { legend: { labels: { color: "#f8fafc" } } }
+      plugins: { legend: { labels: { color: "#334155", font: { family: "'Plus Jakarta Sans', sans-serif", weight: '600' } } } }
     }
   });
 }
@@ -417,14 +476,14 @@ function initForecastChart() {
     data: {
       labels: ["T-0", "T+30s", "T+1m", "T+1.5m", "T+2m", "T+2.5m", "T+3m", "T+3.5m", "T+4m", "T+4.5m"],
       datasets: [
-        { label: "Forecasted Z-Score", data: [], borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.15)", fill: true, borderWidth: 2, tension: 0.3 }
+        { label: "Forecasted Z-Score", data: [], borderColor: "#6366f1", backgroundColor: "rgba(99, 102, 241, 0.12)", fill: true, borderWidth: 2, tension: 0.3 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
-        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" }, title: { display: true, text: "Standard Deviations (σ)", color: "#f59e0b" } }
+        x: { grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } },
+        y: { grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" }, title: { display: true, text: "Standard Deviations (σ)", color: "#6366f1" } }
       },
       plugins: { legend: { display: false } }
     }
@@ -438,17 +497,17 @@ function initIllustrationChart() {
     data: {
       labels: ["T-0", "T+30s", "T+1m", "T+1.5m", "T+2m", "T+2.5m", "T+3m", "T+3.5m", "T+4m", "T+4.5m"],
       datasets: [
-        { label: "Upper Confidence Bound", data: [], borderColor: "#e11d48", borderWidth: 1, borderDash: [4, 4], fill: false },
-        { label: "Predicted Trajectory", data: [], borderColor: "#f59e0b", backgroundColor: "rgba(245,158,11,0.15)", fill: true, borderWidth: 2 }
+        { label: "Upper Confidence Bound", data: [], borderColor: "#f43f5e", borderWidth: 1.5, borderDash: [4, 4], fill: false },
+        { label: "Predicted Trajectory", data: [], borderColor: "#6366f1", backgroundColor: "rgba(99, 102, 241, 0.12)", fill: true, borderWidth: 2 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        x: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } },
-        y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#94a3b8" } }
+        x: { grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } },
+        y: { grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } }
       },
-      plugins: { legend: { labels: { color: "#94a3b8" } } }
+      plugins: { legend: { labels: { color: "#334155", font: { family: "'Plus Jakarta Sans', sans-serif" } } } }
     }
   });
 }
@@ -671,7 +730,7 @@ function updateAuditReport(report) {
   const container = document.getElementById("report-content-body");
   if (!container) return;
   if (!report || report.system_status === "HEALTHY") {
-    container.innerHTML = `<div class="placeholder-report"><p>🟢 System operational. Microservice telemetry baseline normal.</p></div>`;
+    container.innerHTML = `<div class="empty-state"><p>🟢 System operational. Microservice telemetry baseline normal within robust bounds.</p></div>`;
     return;
   }
   const rca = report.root_cause_analysis || {};
@@ -681,61 +740,61 @@ function updateAuditReport(report) {
 
   container.innerHTML = `
     <div style="display:flex; flex-direction:column; gap:16px;">
-      <div style="background:var(--accent-rose-glow); border:1px solid var(--accent-rose); padding:14px 20px; border-radius:10px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; color:#ff4d8d;">
+      <div style="background:var(--pastel-rose-light); border:1px solid var(--pastel-rose-border); padding:14px 20px; border-radius:14px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; color:var(--pastel-rose-text);">
         <span>🚨 [${sev}] PRE-MORTEM HAZARD: ${rca.service} Outage Threat</span>
-        <span id="report-ttf-tag" style="font-size:16px; background:#e11d48; color:#fff; padding:4px 12px; border-radius:20px;">⏳ Time Left: ${report.forecasted_time_to_failure_human}</span>
+        <span id="report-ttf-tag" style="font-size:14px; background:var(--pastel-rose); color:#ffffff; padding:4px 14px; border-radius:20px; font-weight:800;">Time Left: ${report.forecasted_time_to_failure_human}</span>
       </div>
 
       <!-- BUSINESS & FINANCIAL IMPACT CARD -->
-      <div style="background:linear-gradient(135deg, rgba(245,158,11,0.1), rgba(180,83,9,0.05)); border:1px solid rgba(245,158,11,0.3); border-radius:10px; padding:16px;">
-        <div style="color:var(--accent-amber); font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">📉 ESTIMATED BUSINESS & FINANCIAL IMPACT</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:10px;">
-          <div style="background:#0b0f19; padding:10px; border-radius:6px;">
-            <span style="font-size:11px; color:#94a3b8; display:block;">Financial Risk Rate</span>
-            <span style="font-size:15px; font-weight:bold; color:#f43f5e;">${impact.estimated_loss_per_minute || '$450/min'}</span>
+      <div style="background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:16px; padding:18px;">
+        <div style="color:var(--pastel-indigo); font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:12px;">ESTIMATED BUSINESS & FINANCIAL IMPACT</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+            <span style="font-size:11px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Financial Risk Rate</span>
+            <span style="font-size:16px; font-weight:800; color:var(--pastel-rose);">${impact.estimated_loss_per_minute || '$450/min'}</span>
           </div>
-          <div style="background:#0b0f19; padding:10px; border-radius:6px;">
-            <span style="font-size:11px; color:#94a3b8; display:block;">Impacted Customer Sessions</span>
-            <span style="font-size:15px; font-weight:bold; color:#fbbf24;">${impact.affected_active_user_sessions || '14,200 users'}</span>
+          <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+            <span style="font-size:11px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Impacted Sessions</span>
+            <span style="font-size:16px; font-weight:800; color:var(--pastel-peach);">${impact.affected_active_user_sessions || '14,200 users'}</span>
           </div>
-          <div style="background:#0b0f19; padding:10px; border-radius:6px;">
-            <span style="font-size:11px; color:#94a3b8; display:block;">Business Risk Level</span>
-            <span style="font-size:14px; font-weight:bold; color:#38bdf8;">${impact.business_risk_level || 'HIGH REVENUE RISK'}</span>
+          <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+            <span style="font-size:11px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Risk Level</span>
+            <span style="font-size:15px; font-weight:800; color:var(--pastel-sky);">${impact.business_risk_level || 'HIGH REVENUE RISK'}</span>
           </div>
         </div>
-        <div style="font-size:12px; color:#e2e8f0;">${impact.summary || ''}</div>
+        <div style="font-size:13px; color:#cbd5e1; line-height:1.6;">${impact.summary || ''}</div>
       </div>
 
       <!-- ROOT CAUSE & CI/CD CORRELATION -->
       <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px;">
-        <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8; display:block;">Faulty Microservice</span>
-          <span style="font-size:15px; font-weight:bold; color:#fff;">${rca.service}</span>
+        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+          <span style="font-size:10px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Faulty Service</span>
+          <span style="font-size:15px; font-weight:bold; color:#ffffff;">${rca.service}</span>
         </div>
-        <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8; display:block;">Primary Metric Breach</span>
-          <span style="font-size:15px; font-weight:bold; color:#fff;">${rca.primary_metric} (+${rca.max_z_score_deviation} σ)</span>
+        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+          <span style="font-size:10px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Primary Metric</span>
+          <span style="font-size:15px; font-weight:bold; color:#ffffff;">${rca.primary_metric} (+${rca.max_z_score_deviation} σ)</span>
         </div>
-        <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8; display:block;">Causal Confidence</span>
-          <span style="font-size:15px; font-weight:bold; color:#fff;">${(rca.causal_confidence_score * 100).toFixed(0)}%</span>
+        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+          <span style="font-size:10px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Causal Confidence</span>
+          <span style="font-size:15px; font-weight:bold; color:var(--pastel-mint);">${(rca.causal_confidence_score * 100).toFixed(0)}%</span>
         </div>
-        <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px;">
-          <span style="font-size:11px; color:#94a3b8; display:block;">Blast Radius</span>
-          <span style="font-size:15px; font-weight:bold; color:#fff;">${report.blast_radius ? report.blast_radius.affected_microservices_count : 2} services</span>
+        <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
+          <span style="font-size:10px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Blast Radius</span>
+          <span style="font-size:15px; font-weight:bold; color:#ffffff;">${report.blast_radius ? report.blast_radius.affected_microservices_count : 2} services</span>
         </div>
       </div>
 
-      <div style="background:#0f172a; border-left:4px solid var(--accent-amber); padding:12px; font-family:monospace; font-size:12px; color:#fef3c7;">
-        <strong>Correlated CI/CD Deployment Commit:</strong> <code>${commit.commit_id}</code> by ${commit.author}<br/>
+      <div style="background:rgba(255,255,255,0.04); border-left:3px solid var(--pastel-indigo); border-top:1px solid var(--glass-border-subtle); border-right:1px solid var(--glass-border-subtle); border-bottom:1px solid var(--glass-border-subtle); padding:14px; border-radius:0 10px 10px 0; font-family:var(--font-mono); font-size:12px; color:#e2e8f0;">
+        <strong>Deployment Commit:</strong> <code style="color:var(--pastel-indigo);">${commit.commit_id}</code> by ${commit.author}<br/>
         <strong>Message:</strong> ${commit.message}
       </div>
 
       <!-- ACTIONABLE REMEDIATION SUGGESTION -->
-      <div style="background:var(--accent-amber-glow); border:1px solid var(--accent-amber); padding:14px; border-radius:8px; color:#fef3c7;">
-        <strong>💡 GriffinOps Recommended Action:</strong><br/>
-        ${report.suggested_action}
-        <div style="background:#070a11; border:1px solid #14b8a6; color:#2dd4bf; padding:8px 12px; font-family:monospace; font-size:12px; border-radius:6px; margin-top:8px;">
+      <div style="background:var(--pastel-indigo-light); border:1px solid var(--pastel-indigo-border); padding:16px; border-radius:14px; color:#ffffff;">
+        <strong style="color:var(--pastel-indigo); display:block; margin-bottom:6px;">GriffinOps Recommended Action:</strong>
+        <p style="font-size:13px; color:#e2e8f0; line-height:1.6; margin-bottom:10px;">${report.suggested_action}</p>
+        <div style="background:rgba(11,16,29,0.85); border:1px solid var(--glass-border); color:var(--pastel-mint); padding:10px 14px; font-family:var(--font-mono); font-size:12px; border-radius:8px;">
           $ ${report.remediation_command || `kubectl rollout undo deployment/${rca.service} -n production`}
         </div>
       </div>
@@ -849,24 +908,24 @@ async function fetchAPIIllustrations(apiEndpoint) {
         const timeOffset = isNominal ? `Active Production Ingress` : `T-${commit.timestamp_offset_sec || 180}s prior to SLA breach`;
 
         suggBox.innerHTML = `
-          <div style="background:rgba(245,158,11,0.06); border:1px solid rgba(245,158,11,0.25); border-radius:12px; padding:18px; margin-bottom:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+          <div style="background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-top:1px solid var(--glass-border-top); border-radius:18px; padding:20px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
               <div>
                 ${diagBadge}
-                <h3 style="font-family:var(--font-heading); font-size:16px; color:#fff; margin-top:4px;">${sugg.diagnosis_type || 'Root Cause Identified'}</h3>
+                <h3 style="font-family:var(--font-heading); font-size:16px; font-weight:700; color:#ffffff; margin-top:4px;">${sugg.diagnosis_type || 'Root Cause Identified'}</h3>
               </div>
               ${statusBadge}
             </div>
 
-            <p style="font-size:13px; color:#cbd5e1; line-height:1.6; margin-bottom:14px;">
+            <p style="font-size:13px; color:#cbd5e1; line-height:1.6; margin-bottom:16px;">
               ${sugg.root_cause_explanation || sugg.recommended_fix || 'Identified potential contention pattern in target handler.'}
             </p>
 
             <!-- Deployment & Ingress Context -->
-            <div style="background:#090d18; border-left:3px solid var(--amber); padding:10px 14px; border-radius:6px; font-size:12px; margin-bottom:14px; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:center;">
+            <div style="background:rgba(255,255,255,0.04); border-left:3px solid var(--pastel-indigo); border-top:1px solid var(--glass-border-subtle); border-right:1px solid var(--glass-border-subtle); border-bottom:1px solid var(--glass-border-subtle); padding:12px 16px; border-radius:0 10px 10px 0; font-size:12px; margin-bottom:16px; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:center;">
               <div>
                 <span style="color:var(--text-muted);">Deployment Target:</span>
-                <code style="color:var(--amber); font-weight:bold; margin-left:4px;">${commit.commit_id || 'c7a109e'}</code>
+                <code style="color:var(--pastel-indigo); font-weight:bold; margin-left:4px;">${commit.commit_id || 'c7a109e'}</code>
                 <span style="color:#94a3b8; margin-left:8px;">by ${commit.author || 'production-deploy@griffinops.io'}</span>
               </div>
               <div style="color:var(--text-muted); font-size:11px;">
@@ -875,32 +934,32 @@ async function fetchAPIIllustrations(apiEndpoint) {
             </div>
 
             <!-- Target File & Production Configuration Patch -->
-            <div style="margin-bottom:14px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">
-                  📄 Configuration / Target Handler: <code style="color:var(--amber); font-size:12px;">${sugg.file_target || 'handler.py'}</code>
+                  Configuration / Target: <code style="color:var(--pastel-indigo); font-size:12px;">${sugg.file_target || 'handler.py'}</code>
                 </span>
-                <button class="btn btn-secondary btn-sm" onclick="copyCodeDiff('${encodeURIComponent(diffCode)}')">📋 Copy Patch / Config</button>
+                <button class="btn btn-secondary btn-sm" onclick="copyCodeDiff('${encodeURIComponent(diffCode)}')">Copy Patch / Config</button>
               </div>
-              <div style="background:#06080e; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; font-family:var(--font-mono); font-size:12px; line-height:1.5; overflow-x:auto;">
+              <div style="background:var(--bg-code); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px; font-family:var(--font-mono); font-size:12px; line-height:1.6; overflow-x:auto;">
                 ${formattedDiff || '<span style="color:var(--text-muted);">Analyzing configuration...</span>'}
               </div>
             </div>
 
             <!-- Remediation Command & Action Toolbar -->
             <div>
-              <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">
-                ⚙️ GriffinOps Auto-Remediation Command:
+              <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px;">
+                Auto-Remediation Command:
               </span>
-              <div style="background:#070a11; border:1px solid #14b8a6; color:#2dd4bf; padding:10px 14px; font-family:var(--font-mono); font-size:12px; border-radius:8px; margin-bottom:14px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="background:rgba(11,16,29,0.85); border:1px solid var(--glass-border); color:var(--pastel-mint); padding:10px 14px; font-family:var(--font-mono); font-size:12px; border-radius:10px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
                 <code>$ ${sugg.remediation_command || `kubectl rollout undo deployment/${data.target_service} -n production`}</code>
                 <button class="btn btn-secondary btn-sm" onclick="navigator.clipboard.writeText('${sugg.remediation_command || ''}'); showToast('📋 Remediation command copied!');">Copy</button>
               </div>
 
               <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <button class="btn btn-primary" onclick="applyAIHotfix('${targetEndpoint}')">⚡ Apply AI Hotfix Patch</button>
-                <button class="btn btn-secondary" onclick="createPullRequest('${commit.commit_id || 'PR-104'}', '${targetEndpoint}')">🔀 Create GitHub Pull Request</button>
-                <button class="btn btn-secondary" style="color:var(--rose); border-color:rgba(225,29,72,0.4);" onclick="rollbackDeployment('${data.target_service}')">🚀 Rollback Pod Deployment</button>
+                <button class="btn btn-primary" onclick="applyAIHotfix('${targetEndpoint}')">Apply AI Hotfix</button>
+                <button class="btn btn-secondary" onclick="createPullRequest('${commit.commit_id || 'PR-104'}', '${targetEndpoint}')">Create Pull Request</button>
+                <button class="btn btn-secondary" style="color:var(--pastel-rose); border-color:var(--pastel-rose-border);" onclick="rollbackDeployment('${data.target_service}')">Rollback Pod Deployment</button>
               </div>
             </div>
           </div>
@@ -1341,18 +1400,18 @@ function renderTopologySVG(data) {
   var width = svg.clientWidth || 700;
   var height = 300;
 
-  // SVG defs for Dynatrace-style glow filters
+  // SVG defs for soft pastel glow filters
   var defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
 
   // Glow filters for each status
-  var glowColors = { healthy: '#10b981', warning: '#f59e0b', critical: '#e11d48' };
+  var glowColors = { healthy: '#10b981', warning: '#f59e0b', critical: '#f43f5e' };
   Object.keys(glowColors).forEach(function(status) {
     var filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
     filter.setAttribute("id", "glow-" + status);
-    filter.setAttribute("x", "-60%"); filter.setAttribute("y", "-60%");
-    filter.setAttribute("width", "220%"); filter.setAttribute("height", "220%");
+    filter.setAttribute("x", "-40%"); filter.setAttribute("y", "-40%");
+    filter.setAttribute("width", "180%"); filter.setAttribute("height", "180%");
     var feGauss = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-    feGauss.setAttribute("stdDeviation", "5"); feGauss.setAttribute("result", "blur");
+    feGauss.setAttribute("stdDeviation", "3"); feGauss.setAttribute("result", "blur");
     var feMerge = document.createElementNS("http://www.w3.org/2000/svg", "feMerge");
     var node1 = document.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
     node1.setAttribute("in", "blur");
@@ -1369,7 +1428,7 @@ function renderTopologySVG(data) {
   marker.setAttribute("markerHeight", "9"); marker.setAttribute("refX", "7"); marker.setAttribute("refY", "3");
   marker.setAttribute("orient", "auto");
   var arrowPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  arrowPath.setAttribute("d", "M0,0 L0,6 L8,3 z"); arrowPath.setAttribute("fill", "rgba(245,158,11,0.65)");
+  arrowPath.setAttribute("d", "M0,0 L0,6 L8,3 z"); arrowPath.setAttribute("fill", "rgba(99,102,241,0.7)");
   marker.appendChild(arrowPath); defs.appendChild(marker);
 
   // Anomaly arrow marker (critical)
@@ -1378,7 +1437,7 @@ function renderTopologySVG(data) {
   markerCrit.setAttribute("markerHeight", "9"); markerCrit.setAttribute("refX", "7"); markerCrit.setAttribute("refY", "3");
   markerCrit.setAttribute("orient", "auto");
   var arrowPathC = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  arrowPathC.setAttribute("d", "M0,0 L0,6 L8,3 z"); arrowPathC.setAttribute("fill", "rgba(225,29,72,0.75)");
+  arrowPathC.setAttribute("d", "M0,0 L0,6 L8,3 z"); arrowPathC.setAttribute("fill", "rgba(244,63,94,0.85)");
   markerCrit.appendChild(arrowPathC); defs.appendChild(markerCrit);
 
   svg.appendChild(defs);
@@ -1391,9 +1450,10 @@ function renderTopologySVG(data) {
     emptyText.setAttribute("x", width / 2);
     emptyText.setAttribute("y", height / 2);
     emptyText.setAttribute("text-anchor", "middle");
-    emptyText.setAttribute("fill", "#94a3b8");
+    emptyText.setAttribute("fill", "#64748b");
     emptyText.setAttribute("font-size", "13px");
-    emptyText.textContent = "🌐 No monitored targets registered yet. Generate an API Key or click '+ Monitor Live Website' above!";
+    emptyText.setAttribute("font-weight", "600");
+    emptyText.textContent = "No monitored targets registered yet. Generate an API Key or click '+ Monitor Website' above.";
     svg.appendChild(emptyText);
     return;
   }
@@ -1449,7 +1509,7 @@ function renderTopologySVG(data) {
       var x2 = t.x - nx * (RADIUS + 10); var y2 = t.y - ny * (RADIUS + 10);
 
       var isAnomaly = faultInjected || (e.lag_ms && e.lag_ms > 200);
-      var edgeColor = isAnomaly ? 'rgba(225,29,72,0.55)' : 'rgba(245,158,11,0.35)';
+      var edgeColor = isAnomaly ? 'rgba(244,63,94,0.6)' : 'rgba(99,102,241,0.35)';
       var arrowId = isAnomaly ? '#granger-arrow-crit' : '#granger-arrow';
 
       var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -1457,7 +1517,7 @@ function renderTopologySVG(data) {
       line.setAttribute("x2", x2); line.setAttribute("y2", y2);
       line.setAttribute("stroke", edgeColor);
       line.setAttribute("stroke-width", isAnomaly ? "2" : "1.5");
-      if (!isAnomaly) line.setAttribute("stroke-dasharray", "6,3");
+      if (!isAnomaly) line.setAttribute("stroke-dasharray", "5,3");
       line.setAttribute("marker-end", "url(" + arrowId + ")");
       svg.appendChild(line);
 
@@ -1468,19 +1528,19 @@ function renderTopologySVG(data) {
       var lagText = document.createElementNS("http://www.w3.org/2000/svg", "text");
       lagText.setAttribute("x", mx); lagText.setAttribute("y", my);
       lagText.setAttribute("text-anchor", "middle");
-      lagText.setAttribute("fill", isAnomaly ? "#f59e0b" : "rgba(148,163,184,0.5)");
-      lagText.setAttribute("font-size", "9px"); lagText.setAttribute("font-weight", "700");
+      lagText.setAttribute("fill", isAnomaly ? "#f43f5e" : "#6366f1");
+      lagText.setAttribute("font-size", "10px"); lagText.setAttribute("font-weight", "700");
       lagText.textContent = "\u03c4*=" + lagMs + "ms";
       svg.appendChild(lagText);
     });
   }
 
-  // Draw nodes with Dynatrace-style glow rings
-  var statusColors = { healthy: '#10b981', warning: '#f59e0b', critical: '#e11d48' };
+  // Draw nodes with Soft Glassmorphic Pastel rings
+  var statusColors = { healthy: '#10b981', warning: '#f59e0b', critical: '#f43f5e' };
   var statusFills = {
-    healthy: 'rgba(16,185,129,0.15)',
-    warning: 'rgba(245,158,11,0.15)',
-    critical: 'rgba(225,29,72,0.18)'
+    healthy: 'rgba(209,250,229,0.9)',
+    warning: 'rgba(254,243,199,0.9)',
+    critical: 'rgba(255,228,230,0.9)'
   };
 
   if (data.nodes) {
@@ -1496,21 +1556,20 @@ function renderTopologySVG(data) {
       g.setAttribute("title", n.id);
       g.onclick = function() { handleNRTileDrilldown(n.id, 'latency_ms', status === 'critical' ? 3.8 : status === 'warning' ? 2.1 : 0.5); };
 
-      // Outer animated glow ring
+      // Outer soft ring
       var outerRing = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       outerRing.setAttribute("cx", pos.x); outerRing.setAttribute("cy", pos.y);
-      outerRing.setAttribute("r", "24"); outerRing.setAttribute("fill", "none");
+      outerRing.setAttribute("r", "23"); outerRing.setAttribute("fill", "none");
       outerRing.setAttribute("stroke", color); outerRing.setAttribute("stroke-width", "1.5");
-      outerRing.setAttribute("opacity", "0.3");
+      outerRing.setAttribute("opacity", "0.4");
       outerRing.setAttribute("filter", "url(#glow-" + status + ")");
 
-      // Main node circle
+      // Main node circle (frosted pastel glass look)
       var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       circle.setAttribute("cx", pos.x); circle.setAttribute("cy", pos.y);
       circle.setAttribute("r", "17");
       circle.setAttribute("fill", statusFills[status]);
-      circle.setAttribute("stroke", color); circle.setAttribute("stroke-width", "2.5");
-      circle.setAttribute("filter", "url(#glow-" + status + ")");
+      circle.setAttribute("stroke", color); circle.setAttribute("stroke-width", "2");
 
       // Inner status dot
       var dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -1519,9 +1578,10 @@ function renderTopologySVG(data) {
 
       // Service label
       var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      text.setAttribute("x", pos.x); text.setAttribute("y", pos.y + 33);
-      text.setAttribute("text-anchor", "middle"); text.setAttribute("fill", "#cbd5e1");
-      text.setAttribute("font-size", "10px"); text.setAttribute("font-weight", "700");
+      text.setAttribute("x", pos.x); text.setAttribute("y", pos.y + 34);
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("fill", currentTheme === "light" ? "#0f172a" : "#ffffff");
+      text.setAttribute("font-size", "11px"); text.setAttribute("font-weight", "700");
       text.setAttribute("font-family", "'JetBrains Mono', monospace");
       text.textContent = n.id.replace("-service", "");
 
@@ -1531,8 +1591,7 @@ function renderTopologySVG(data) {
         badge.setAttribute("x", pos.x); badge.setAttribute("y", pos.y - 25);
         badge.setAttribute("text-anchor", "middle"); badge.setAttribute("fill", color);
         badge.setAttribute("font-size", "9px"); badge.setAttribute("font-weight", "800");
-        badge.setAttribute("filter", "url(#glow-" + status + ")");
-        badge.textContent = status === 'critical' ? "\u26d4 SEV-1" : "\u26a0\ufe0f WARN";
+        badge.textContent = status === 'critical' ? "SEV-1" : "WARN";
         g.appendChild(badge);
       }
 

@@ -3,20 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GriffinOps Enterprise — Predictive AI SRE Copilot</title>
-  <meta name="description" content="Proactive failure prediction powered by PyTorch TCN, LagRCA, and Granger Causality. Inspired by Datadog, Dynatrace, and New Relic.">
+  <title>GriffinOps — Autonomous Predictive Observability & SRE Copilot</title>
+  <meta name="description" content="Predictive failure forecasting powered by PyTorch TCN, LagRCA, and Granger Causality in an ethereal glassmorphism UI.">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
+<!-- ───────────────────────── AMBIENT BACKGROUND GLOW & HALO ────────────── -->
+<div class="ambient-bg-glow" id="ambient-bg-glow">
+  <div class="ambient-halo" id="ambient-halo"></div>
+  <div class="ambient-static-orb-1"></div>
+  <div class="ambient-static-orb-2"></div>
+</div>
+
 <!-- ───────────────────────── AUTH SCREEN ──────────────────────────────── -->
 <div class="auth-overlay" id="auth-screen">
   <div class="auth-card">
     <div class="auth-header">
-      <div class="auth-logo">🦅</div>
+      <div class="auth-logo-icon">
+        <span class="griffin-logo-img lg"></span>
+      </div>
       <h2>GriffinOps Enterprise</h2>
-      <p>Predictive AI SRE Copilot · Supabase Auth</p>
+      <p>Predictive AI SRE Copilot · Supabase Authentication</p>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab-btn active" id="btn-tab-login" onclick="switchAuthTab('login')">Sign In</button>
@@ -25,14 +34,15 @@
     <div class="auth-body" id="auth-form-login">
       <div class="form-group">
         <label>Email Address</label>
-        <input type="email" id="login-email" placeholder="developer@company.com">
+        <input type="email" id="login-email" value="admin@griffinops.io" placeholder="developer@company.com">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="login-pass" placeholder="••••••••">
+        <input type="password" id="login-pass" value="admin123" placeholder="••••••••">
       </div>
       <div class="auth-error" id="login-error"></div>
-      <button class="btn btn-primary" style="width:100%;" onclick="handleLogin()">Sign In to Dashboard</button>
+      <button class="btn btn-primary" style="width:100%; margin-bottom:8px;" onclick="handleLogin()">Sign In to Dashboard</button>
+      <button class="btn btn-secondary" style="width:100%; font-size:11px;" onclick="quickDemoLogin()">⚡ 1-Click Instant Access</button>
     </div>
     <div class="auth-body" id="auth-form-register" style="display:none;">
       <div class="form-group">
@@ -59,7 +69,9 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <span class="logo">🦅</span>
+      <div class="sidebar-brand-icon">
+        <span class="griffin-logo-img"></span>
+      </div>
       <div>
         <span class="name">GriffinOps</span>
         <span class="edition">Predictive SRE v2.4</span>
@@ -67,19 +79,24 @@
     </div>
     <nav class="nav-menu">
       <button class="nav-item active" onclick="switchTab('overview')">
-        <span class="nav-icon">📊</span> Executive Overview
+        <svg class="nav-svg" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        Executive Overview
       </button>
       <button class="nav-item" onclick="switchTab('api-portal')">
-        <span class="nav-icon">🔑</span> Developer API Portal
+        <svg class="nav-svg" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+        Developer API Portal
       </button>
       <button class="nav-item" onclick="switchTab('causal')">
-        <span class="nav-icon">🧬</span> Causal Topology
+        <svg class="nav-svg" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        Causal Topology
       </button>
       <button class="nav-item" onclick="switchTab('illustrations')">
-        <span class="nav-icon">🛠️</span> AI Code Fixes
+        <svg class="nav-svg" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        AI Code Fixes
       </button>
       <button class="nav-item" onclick="switchTab('profile')">
-        <span class="nav-icon">🔔</span> Alerts & Auth
+        <svg class="nav-svg" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Alerts &amp; Auth
       </button>
     </nav>
     <div class="sidebar-footer" style="margin-top:auto;">
@@ -88,7 +105,9 @@
         <span class="user-name" id="user-display-name">SRE Lead</span>
         <span class="user-role" id="user-display-role">Chief Architect</span>
       </div>
-      <button class="logout-btn" title="Sign Out" onclick="handleLogout()">🚪</button>
+      <button class="logout-btn" title="Sign Out" onclick="handleLogout()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
     </div>
   </aside>
 
@@ -98,11 +117,22 @@
     <header class="topbar">
       <div class="page-title" id="page-title-display">Executive Overview &amp; Predictive Watchdog</div>
       <div class="topbar-right">
-        <button class="btn btn-secondary btn-sm" onclick="openAddRealSiteModal()" style="display:flex;align-items:center;gap:6px;">
-          🌐 + Monitor Live Website / API
+        <button class="btn btn-secondary btn-sm theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark / Light Glass Mode">
+          <span id="theme-icon-light">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </span>
+          <span id="theme-icon-dark" style="display:none;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </span>
+          <span id="theme-toggle-text">Light Mode</span>
         </button>
-        <button class="btn btn-secondary btn-sm" onclick="downloadPDFReport()" style="display:flex;align-items:center;gap:6px;">
-          📄 Audit Report
+        <button class="btn btn-secondary btn-sm" onclick="openAddRealSiteModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          + Monitor Website / API
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="downloadPDFReport()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Audit Report
         </button>
         <div class="system-health-pill" id="system-status-indicator">
           <span class="pulse-dot"></span>
@@ -114,16 +144,18 @@
     <main class="main-content">
 
       <!-- ═══════════════════════════════════════════════════════════
-           TAB 1 — EXECUTIVE OVERVIEW  (Datadog KPI Banner + Charts)
+           TAB 1 — EXECUTIVE OVERVIEW
       ════════════════════════════════════════════════════════════════ -->
       <div class="tab-content active" id="tab-overview">
 
-        <!-- Datadog-Style KPI Banner -->
+        <!-- Glassmorphic KPI Banner -->
         <div class="kpi-grid">
           <div class="kpi-card">
             <div class="kpi-card-header">
               <span class="kpi-label">P95 Latency</span>
-              <span class="kpi-icon">⚡</span>
+              <div class="kpi-icon-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
             </div>
             <div class="kpi-value" id="kpi-latency">— ms</div>
             <div class="kpi-delta">Live stream · 3s poll</div>
@@ -131,7 +163,9 @@
           <div class="kpi-card" id="kpi-card-risk">
             <div class="kpi-card-header">
               <span class="kpi-label">TCN Crash Risk</span>
-              <span class="kpi-icon">🧠</span>
+              <div class="kpi-icon-pill" style="background:var(--pastel-lilac-light); color:var(--pastel-lilac);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              </div>
             </div>
             <div class="kpi-value" id="kpi-crash-prob">0.0%</div>
             <div class="kpi-delta">T+240s Pre-Mortem Horizon</div>
@@ -139,7 +173,9 @@
           <div class="kpi-card" id="kpi-card-revenue">
             <div class="kpi-card-header">
               <span class="kpi-label">Revenue Risk</span>
-              <span class="kpi-icon">💰</span>
+              <div class="kpi-icon-pill" style="background:var(--pastel-peach-light); color:var(--pastel-peach);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
             </div>
             <div class="kpi-value" id="kpi-revenue-risk">$0 / min</div>
             <div class="kpi-delta">Dynamic SLA-Weighted Rate</div>
@@ -147,7 +183,9 @@
           <div class="kpi-card">
             <div class="kpi-card-header">
               <span class="kpi-label">Active API Keys</span>
-              <span class="kpi-icon">🛡️</span>
+              <div class="kpi-icon-pill" style="background:var(--pastel-mint-light); color:var(--pastel-mint);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
             </div>
             <div class="kpi-value" id="kpi-api-count">—</div>
             <div class="kpi-delta">White-Box Ingestion Stream</div>
@@ -192,10 +230,36 @@
           </section>
         </div>
 
-        <!-- New Relic-Style Monitored API Anomaly Table -->
+        <!-- Monitored Live Websites Table -->
         <section class="card">
           <div class="card-header">
-            <h2>Live API Endpoint Monitor — New Relic Lookout View</h2>
+            <h2>Live Monitored Real Web Apps &amp; APIs</h2>
+            <button class="btn btn-secondary btn-sm" onclick="openAddRealSiteModal()">+ Add Monitored Target</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Target Name</th>
+                  <th>Monitored URL</th>
+                  <th>Category</th>
+                  <th>Measured Latency</th>
+                  <th>HTTP Status</th>
+                  <th>Payload Size</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="real-websites-table-body">
+                <tr><td colspan="7" class="empty-state"><p>Loading live website telemetry…</p></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Monitored API Anomaly Table -->
+        <section class="card">
+          <div class="card-header">
+            <h2>Live API Endpoint Ingestion Monitor</h2>
             <span class="badge badge-amber">Click row to drilldown</span>
           </div>
           <div class="table-wrap">
@@ -289,7 +353,7 @@
               <span class="badge badge-amber">Causal Lag Inference Engine</span>
             </div>
             <p style="color:var(--text-muted);font-size:12px;margin-bottom:14px;line-height:1.7;">
-              Evaluates directional Granger causality and FFT temporal phase lag shifts (τ*) across OpenTelemetry trace spans in real time to isolate root cause services from downstream ripple symptoms — <strong style="color:var(--amber);">4 minutes prior to failure</strong>.
+              Evaluates directional Granger causality and FFT temporal phase lag shifts (τ*) across OpenTelemetry trace spans in real time to isolate root cause services from downstream ripple symptoms — <strong style="color:var(--pastel-indigo);">4 minutes prior to failure</strong>.
             </p>
             <div class="topology-wrapper">
               <svg id="topology-svg" width="100%" height="300"></svg>
@@ -308,27 +372,27 @@
               <div>
                 <h2>AI Code Fix Suggestions &amp; Architectural Remediation</h2>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">
-                  Active Target API: <strong id="illustrations-api-tag" style="color:var(--amber);">—</strong>
+                  Active Target API: <strong id="illustrations-api-tag" style="color:var(--pastel-indigo);">—</strong>
                 </div>
               </div>
               <span class="badge badge-rose">Autonomous Pre-Mortem Fix</span>
             </div>
 
-            <!-- Dynamic Target API Selector Pills -->
+            <!-- Target API Selector Pills -->
             <div style="margin-bottom:16px;">
               <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Select Target API to Inspect AI Fix:</span>
-              <div class="services-selector" id="ai-fix-api-selector">
-                <!-- Dynamically populated from active APIs -->
+              <div class="svc-selector" id="ai-fix-api-selector">
+                <!-- Dynamically populated -->
               </div>
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;">
-              <div style="background:rgba(0,0,0,.35);padding:14px;border-radius:12px;border:1px solid var(--bg-card-border);">
-                <div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">Span Dependency Call Tree</div>
+              <div style="background:rgba(255,255,255,0.7);padding:16px;border-radius:14px;border:1px solid var(--glass-border);">
+                <div style="font-size:11px;font-weight:700;color:var(--pastel-indigo);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">Span Dependency Call Tree</div>
                 <div id="trace-tree-container"></div>
               </div>
-              <div style="background:rgba(0,0,0,.35);padding:14px;border-radius:12px;border:1px solid var(--bg-card-border);">
-                <div style="font-size:11px;font-weight:700;color:var(--amber);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">TCN Forecast Confidence Interval (Z-Scores)</div>
+              <div style="background:rgba(255,255,255,0.7);padding:16px;border-radius:14px;border:1px solid var(--glass-border);">
+                <div style="font-size:11px;font-weight:700;color:var(--pastel-indigo);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">TCN Forecast Confidence Interval (Z-Scores)</div>
                 <div class="chart-sm">
                   <canvas id="illustrationForecastChart"></canvas>
                 </div>
@@ -367,38 +431,30 @@
             </div>
           </section>
 
-          <!-- Email Watchdog Settings -->
+          <!-- Alert Recipient Settings -->
           <section class="card">
             <div class="card-header">
-              <h2>Automated Email Watchdog</h2>
-              <span class="badge badge-rose">Auto Dispatch Daemon</span>
-            </div>
-            
-            <div style="background:rgba(245,158,11,0.08);border:1px solid var(--amber);padding:12px 14px;border-radius:10px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;">
-              <div>
-                <span style="font-size:10px;color:var(--text-muted);display:block;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Official Dispatch Sender (Fixed)</span>
-                <code style="font-size:13px;font-weight:700;color:var(--amber);font-family:var(--font-mono);">griffinops26@gmail.com</code>
-              </div>
-              <span class="badge badge-amber">Gmail SMTP Active</span>
+              <h2>Alert Recipient Settings</h2>
+              <span class="badge badge-mint">Active</span>
             </div>
 
             <p style="color:var(--text-muted);font-size:12px;margin-bottom:14px;line-height:1.6;">
-              The background watchdog continuously evaluates PyTorch TCN failure forecasts ($T+240\text{s}$) and automatically dispatches rich pre-mortem alerts from <strong>griffinops26@gmail.com</strong> to the configured developer recipient emails below.
+              Configure the email address(es) where you want to receive autonomous pre-mortem failure notifications and SRE incident reports.
             </p>
 
             <div class="form-group">
-              <label>Developer Recipient Emails (comma separated)</label>
-              <input type="text" id="pref-dev-emails" value="griffinops26@gmail.com, sre-dev@sies.edu" placeholder="dev1@company.com, dev2@company.com">
+              <label>Recipient Email Address (to receive alerts)</label>
+              <input type="text" id="pref-dev-emails" placeholder="engineer@company.com, team-sre@company.com">
             </div>
 
             <div style="display:flex;align-items:center;gap:10px;margin:12px 0 14px 0;">
-              <input type="checkbox" id="pref-alerts-enabled" checked style="width:auto;cursor:pointer;accent-color:var(--amber);">
+              <input type="checkbox" id="pref-alerts-enabled" checked style="width:auto;cursor:pointer;accent-color:var(--pastel-indigo);">
               <label for="pref-alerts-enabled" style="font-size:12px;color:var(--text-primary);cursor:pointer;margin-bottom:0;text-transform:none;">Enable Autonomous Background Alert Dispatches</label>
             </div>
 
             <div style="display:flex;gap:10px;margin-top:14px;">
-              <button class="btn btn-primary" onclick="saveProfileSettings()">Save Preferences</button>
-              <button class="btn btn-secondary" onclick="sendTestAlertEmail()">🧪 Send Test Alert Email</button>
+              <button class="btn btn-primary" onclick="saveProfileSettings()">Save Notification Email</button>
+              <button class="btn btn-secondary" onclick="sendTestAlertEmail()">Send Test Alert</button>
             </div>
           </section>
         </div>
@@ -433,13 +489,13 @@
   </div>
 </div>
 
-<!-- ═══════════════ CREATE API KEY MODAL (2-step) ═══════════════════════ -->
+<!-- ═══════════════ CREATE API KEY MODAL ══════════════════════════════════ -->
 <div class="modal-overlay" id="create-key-modal">
   <div class="modal-card" style="max-width:620px;">
     <!-- Step 1 -->
     <div id="key-modal-step-form">
       <div class="modal-header">
-        <h3>🔑 Generate Production API Key</h3>
+        <h3>Generate Production API Key</h3>
         <button class="close-btn" onclick="closeCreateKeyModal()">&times;</button>
       </div>
       <div class="form-group"><label>API Key / Service Name</label><input type="text" id="new-key-name" placeholder="e.g. Payment Gateway API"></div>
@@ -457,28 +513,28 @@
       <div class="form-group"><label>Business Risk SLA Tier</label>
         <select id="new-key-tier">
           <option value="Payment ($850/min)">Payment Service — $850/min High Risk</option>
-          <option value="Auth ($650/min)">Auth & Session — $650/min Med-High Risk</option>
-          <option value="Search ($400/min)">Search & Catalog — $400/min Med Risk</option>
+          <option value="Auth ($650/min)">Auth &amp; Session — $650/min Med-High Risk</option>
+          <option value="Search ($400/min)">Search &amp; Catalog — $400/min Med Risk</option>
           <option value="General ($250/min)">General Microservice — $250/min Standard</option>
         </select>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeCreateKeyModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitCreateAPIKey()">🚀 Generate & Get Code</button>
+        <button class="btn btn-primary" onclick="submitCreateAPIKey()">Generate &amp; Get Code</button>
       </div>
     </div>
     <!-- Step 2 -->
     <div id="key-modal-step-success" style="display:none;">
       <div class="modal-header">
-        <h3>🎉 API Key Generated</h3>
+        <h3>API Key Generated</h3>
         <button class="close-btn" onclick="closeCreateKeyModal()">&times;</button>
       </div>
-      <div style="background:var(--amber-faint);border:1px solid var(--amber);padding:14px 16px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="background:var(--pastel-indigo-light);border:1px solid var(--pastel-indigo-border);padding:14px 16px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
         <div>
           <span style="font-size:10px;color:var(--text-muted);display:block;text-transform:uppercase;letter-spacing:.4px;">Your Generated API Key</span>
-          <code id="modal-generated-key" style="font-size:15px;font-weight:700;color:var(--amber);font-family:var(--font-mono);">gop_live_…</code>
+          <code id="modal-generated-key" style="font-size:14px;font-weight:700;color:var(--pastel-indigo-text);font-family:var(--font-mono);">gop_live_…</code>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="copyGeneratedKeyText()">📋 Copy Key</button>
+        <button class="btn btn-secondary btn-sm" onclick="copyGeneratedKeyText()">Copy Key</button>
       </div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Stream white-box telemetry into GriffinOps using the dynamically populated snippet:</p>
       <div class="auth-tabs" style="margin-bottom:12px;">
@@ -486,22 +542,22 @@
         <button class="auth-tab-btn" id="modal-btn-js" onclick="switchModalSnippetTab('js')">Node.js</button>
         <button class="auth-tab-btn" id="modal-btn-curl" onclick="switchModalSnippetTab('curl')">cURL</button>
       </div>
-      <pre id="modal-code-box-python" class="snippet-pre" style="color:#fbbf24;"></pre>
-      <pre id="modal-code-box-js" class="snippet-pre" style="display:none;color:#f59e0b;"></pre>
-      <pre id="modal-code-box-curl" class="snippet-pre" style="display:none;color:#f43f5e;"></pre>
+      <pre id="modal-code-box-python" class="snippet-pre" style="color:#a5b4fc;"></pre>
+      <pre id="modal-code-box-js" class="snippet-pre" style="display:none;color:#93c5fd;"></pre>
+      <pre id="modal-code-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;"></pre>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="copyModalActiveSnippet()">📋 Copy Code</button>
+        <button class="btn btn-secondary" onclick="copyModalActiveSnippet()">Copy Code</button>
         <button class="btn btn-primary" onclick="closeCreateKeyModal()">Done</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- SDK Embed Modal (legacy — kept for Embed SDK button) -->
+<!-- SDK Embed Modal -->
 <div class="modal-overlay" id="sdk-embed-modal">
   <div class="modal-card" style="max-width:640px;">
     <div class="modal-header">
-      <h3>⚙️ Integration Code</h3>
+      <h3>Integration Code</h3>
       <button class="close-btn" onclick="closeSDKEmbedModal()">&times;</button>
     </div>
     <div class="auth-tabs" style="margin-bottom:12px;">
@@ -509,11 +565,11 @@
       <button class="auth-tab-btn" id="btn-snippet-js" onclick="switchSnippetTab('js')">Node.js</button>
       <button class="auth-tab-btn" id="btn-snippet-curl" onclick="switchSnippetTab('curl')">cURL</button>
     </div>
-    <pre id="snippet-box-python" class="snippet-pre" style="color:#fbbf24;"></pre>
-    <pre id="snippet-box-js" class="snippet-pre" style="display:none;color:#f59e0b;"></pre>
-    <pre id="snippet-box-curl" class="snippet-pre" style="display:none;color:#f43f5e;"></pre>
+    <pre id="snippet-box-python" class="snippet-pre" style="color:#a5b4fc;"></pre>
+    <pre id="snippet-box-js" class="snippet-pre" style="display:none;color:#93c5fd;"></pre>
+    <pre id="snippet-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;"></pre>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="copyActiveSnippet()">📋 Copy Code</button>
+      <button class="btn btn-secondary" onclick="copyActiveSnippet()">Copy Code</button>
       <button class="btn btn-primary" onclick="closeSDKEmbedModal()">Done</button>
     </div>
   </div>
@@ -523,7 +579,7 @@
 <div class="modal-overlay" id="add-real-site-modal">
   <div class="modal-card" style="max-width:540px;">
     <div class="modal-header">
-      <h3>🌐 Monitor Live Website / API Endpoint</h3>
+      <h3>Monitor Live Website / API Endpoint</h3>
       <button class="close-btn" onclick="closeAddRealSiteModal()">&times;</button>
     </div>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.6;">
@@ -535,7 +591,7 @@
     </div>
     <div class="form-group">
       <label>Live URL to Ping</label>
-      <input type="url" id="real-site-url" placeholder="https://my-app.com/api/health">
+      <input type="url" id="real-site-url" placeholder="https://httpbin.org/get">
     </div>
     <div class="form-group">
       <label>Endpoint Category</label>
@@ -548,7 +604,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeAddRealSiteModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="submitAddRealSite()">🚀 Start Live Pinging</button>
+      <button class="btn btn-primary" onclick="submitAddRealSite()">Start Live Pinging</button>
     </div>
   </div>
 </div>

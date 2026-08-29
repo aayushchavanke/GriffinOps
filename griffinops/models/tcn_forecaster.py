@@ -45,9 +45,45 @@ class DilatedCausalConv1dBlock(nn.Module):
         
         return res + self.residual(x)
 
+class PatchTSTSubSequenceEmbedding(nn.Module):
+    """
+    Sub-Sequence Patching Layer (PatchTST - Nie et al., ICLR 2024).
+    Unfolds 1D time-series telemetry into overlapping sub-sequence patches (P=6, S=3)
+    to retain local semantic trend context and acceleration without blowing up dimensionality.
+    """
+    def __init__(self, patch_len: int = 6, stride: int = 3, num_features: int = 5):
+        super(PatchTSTSubSequenceEmbedding, self).__init__()
+        self.patch_len = patch_len
+        self.stride = stride
+        self.patch_proj = nn.Linear(patch_len, patch_len)
+        self.norm = nn.LayerNorm(patch_len)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x: [Batch, Num_Features, Seq_Len]
+        seq_len = x.size(-1)
+        if seq_len < self.patch_len:
+            return x # Fallback if sequence is shorter than patch window
+            
+        # Unfold into overlapping patches: [Batch, Num_Features, Num_Patches, Patch_Len]
+        patches = x.unfold(dimension=-1, size=self.patch_len, step=self.stride)
+        # Apply local linear semantic projection and normalization
+        proj_patches = self.norm(F.relu(self.patch_proj(patches)))
+        
+        # Flatten patches back to continuous temporal sequence with localized semantic enhancement
+        batch_size, num_feats, num_patches, p_len = proj_patches.size()
+        enhanced_seq = proj_patches.reshape(batch_size, num_feats, num_patches * p_len)
+        
+        # Adjust length to match original sequence or interpolate smoothly
+        if enhanced_seq.size(-1) != seq_len:
+            enhanced_seq = F.interpolate(enhanced_seq, size=seq_len, mode='linear', align_corners=False)
+            
+        # Residual fusion with original raw telemetry stream
+        return x + 0.35 * enhanced_seq
+
 class PyTorchTCNForecaster(nn.Module):
     """
     Temporal Convolutional Network (TCN) for Multi-Step-Ahead Telemetry Forecasting.
+    Enhanced with PatchTST Sub-Sequence Patching (ICLR 2024).
     Predicts metric trajectories Z-scores minutes into the future to forecast outages before they breach thresholds.
     """
     def __init__(
@@ -57,11 +93,16 @@ class PyTorchTCNForecaster(nn.Module):
         num_layers: int = 3,
         kernel_size: int = 3,
         forecast_horizon: int = 10,
-        dropout: float = 0.2
+        dropout: float = 0.2,
+        use_patching: bool = True
     ):
         super(PyTorchTCNForecaster, self).__init__()
         self.num_features = num_features
         self.forecast_horizon = forecast_horizon
+        self.use_patching = use_patching
+        
+        # Sub-sequence patch encoder (PatchTST 2024)
+        self.patch_encoder = PatchTSTSubSequenceEmbedding(patch_len=6, stride=3, num_features=num_features) if use_patching else nn.Identity()
         
         layers = []
         in_ch = num_features
@@ -95,7 +136,10 @@ class PyTorchTCNForecaster(nn.Module):
             failure_prob: [Batch, 1]
         """
         batch_size = x.size(0)
-        tcn_out = self.tcn_backbone(x) # [Batch, Hidden, In_Seq]
+        # Apply PatchTST sub-sequence tokenization
+        x_patched = self.patch_encoder(x)
+        
+        tcn_out = self.tcn_backbone(x_patched) # [Batch, Hidden, In_Seq]
         last_representation = tcn_out[:, :, -1] # [Batch, Hidden]
         
         forecast_raw = self.forecast_head(last_representation) # [Batch, Features * Horizon]

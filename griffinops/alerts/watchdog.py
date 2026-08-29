@@ -22,7 +22,7 @@ class BackgroundAlertWatchdog:
         self.last_alert_time: float = 0.0
         self.cooldown_seconds: float = 45.0 # Prevent duplicate email spam during single fault window
         self.dispatch_log: List[dict] = []
-        self.registered_developer_emails = ["griffinops26@gmail.com", "sre-dev@sies.edu"]
+        self.registered_developer_emails = ["sre-lead@company.com"]
 
     def start(self):
         if self.is_running:

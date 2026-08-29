@@ -130,12 +130,12 @@ class EmailConfigRequest(BaseModel):
 
 USER_PROFILE_STATE = {
     "user_id": "usr_admin001",
-    "email": "griffinops26@gmail.com",
+    "email": "sre-lead@company.com",
     "name": "SRE Lead Engineer",
     "role": "CHIEF SRE ARCHITECT",
     "organization": "SIES GST AI & Data Science Team",
     "email_alerts_enabled": True,
-    "developer_emails": ["griffinops26@gmail.com", "sre-dev@sies.edu"],
+    "developer_emails": ["sre-lead@company.com"],
     "assigned_services_count": 6
 }
 
@@ -143,9 +143,10 @@ USER_PROFILE_STATE = {
 def get_user_profile():
     email_status = notifier.get_config_status() if notifier else {}
     dev_emails = watchdog.registered_developer_emails if watchdog and watchdog.registered_developer_emails else USER_PROFILE_STATE["developer_emails"]
+    primary_email = dev_emails[0] if dev_emails else USER_PROFILE_STATE["email"]
     return {
         "user_id": USER_PROFILE_STATE["user_id"],
-        "email": "griffinops26@gmail.com",
+        "email": primary_email,
         "name": USER_PROFILE_STATE["name"],
         "role": USER_PROFILE_STATE["role"],
         "organization": USER_PROFILE_STATE["organization"],
@@ -169,9 +170,13 @@ def update_user_profile(req: ProfileUpdateRequest):
     USER_PROFILE_STATE["organization"] = req.organization
     USER_PROFILE_STATE["developer_emails"] = req.developer_emails
     USER_PROFILE_STATE["email_alerts_enabled"] = req.email_alerts_enabled
+    if req.developer_emails:
+        USER_PROFILE_STATE["email"] = req.developer_emails[0]
+    elif req.email:
+        USER_PROFILE_STATE["email"] = req.email
     if watchdog:
         watchdog.registered_developer_emails = req.developer_emails
-    return {"status": "SUCCESS", "message": "User profile & automated email notification settings updated.", "profile": USER_PROFILE_STATE}
+    return {"status": "SUCCESS", "message": "User recipient email & notification settings updated.", "profile": USER_PROFILE_STATE}
 
 @router.get("/user/email-config")
 def get_email_config():

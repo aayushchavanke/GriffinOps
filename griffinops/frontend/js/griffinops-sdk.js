@@ -1,5 +1,5 @@
 /**
- * 🦅 GriffinOps Real-Time Telemetry & Predictive Observability SDK
+ * GriffinOps Real-Time Telemetry & Predictive Observability SDK
  * Single-line Embed Script for Hosted Websites & Microservices
  *
  * Usage:

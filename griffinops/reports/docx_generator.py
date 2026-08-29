@@ -53,7 +53,7 @@ class DOCXReportGenerator:
             {"title": "2. Robust Z-Score Normalizer", "desc": "Application-Agnostic Scale Normalization\nz = (x - μ) / (σ + 1e-5)", "x": 0.37, "y": 0.62, "w": 0.26, "h": 0.25, "border": BORDER_PURPLE},
             {"title": "3. PyTorch TCN Forecaster", "desc": "1D Dilated Causal Convolutions\nMulti-step Forecast Output (t+1 to t+10)", "x": 0.69, "y": 0.62, "w": 0.26, "h": 0.25, "border": BORDER_PINK},
             {"title": "4. Causal RCA Engine", "desc": "PageRank Call Tree Traversal\nDeployment Commit Correlation", "x": 0.21, "y": 0.15, "w": 0.26, "h": 0.25, "border": BORDER_RED},
-            {"title": "5. Automated Email Watchdog", "desc": "Gmail TLS SMTP (griffinops26@gmail.com)\nBackground Alert Daemon & Reports", "x": 0.53, "y": 0.15, "w": 0.26, "h": 0.25, "border": BORDER_GREEN},
+            {"title": "5. Automated Email Watchdog", "desc": "Autonomous Alert Watchdog\nBackground Daemon & Reports", "x": 0.53, "y": 0.15, "w": 0.26, "h": 0.25, "border": BORDER_GREEN},
         ]
 
         for b in boxes_1:
@@ -278,7 +278,7 @@ class DOCXReportGenerator:
             "to stream 4 Golden Signals (Latency ms, RPS, HTTP Error Rate, CPU/RAM Saturation %) into GriffinOps. "
             "Utilizing PyTorch Temporal Convolutional Networks (TCN) with 1D dilated causal convolutions, GriffinOps forecasts metric failure vectors 5–10 minutes in advance. "
             "When an anomaly is predicted, a PageRank-based causal graph algorithm (RCAEval) traverses OpenTelemetry call trees, localizes the root-cause microservice, "
-            "correlates recent deployment Git commits, and automatically dispatches background transactional emails via griffinops26@gmail.com containing exact remediation commands."
+            "correlates recent deployment Git commits, and automatically dispatches background incident notifications containing exact remediation commands."
         )
         p_abs.paragraph_format.space_after = Pt(14)
 
@@ -293,7 +293,7 @@ class DOCXReportGenerator:
             "4. Real-Time Telemetry Stream & Z-Score Normalization: Telemetry metrics are ingested, normalized via rolling Z-scores, and fed into deep learning models.\n"
             "5. Deep Learning Pre-Mortem Forecast: PyTorch TCN predicts failure probabilities up to 4.5 minutes before a system crash.\n"
             "6. Dynamic Causal Root Cause Localization: RCAEval PageRank pinpoints the exact root-cause target, primary metric breach (+3.0σ Z-Score), estimated business revenue loss rate ($/min), and affected user sessions.\n"
-            "7. Background Email Watchdog: Automated background daemon dispatches email alerts from griffinops26@gmail.com directly into developer inboxes with immediate kubectl remediation actions."
+            "7. Background Alert Watchdog: Automated background daemon dispatches pre-mortem failure alerts directly into developer recipient inboxes with immediate kubectl remediation actions."
         )
         p_c1.paragraph_format.space_after = Pt(14)
 
@@ -375,7 +375,7 @@ class DOCXReportGenerator:
             "2. Dynamic Real Website Monitor: Live website HTTP monitoring (ping_all_sites) for user-added target URLs.\n"
             "3. Multi-Format Integration SDK: Created griffinops-sdk.js with copyable embed snippets in HTML <script>, JS fetch, Python requests, and cURL.\n"
             "4. Dynamic Countdown & Clean SRE Dashboard: Dynamic 1-second interval outage countdown timer and clean 4-tab dashboard UI.\n"
-            "5. Automated Gmail Alert Watchdog: Configured griffinops26@gmail.com via Gmail TLS SMTP with zero-cooldown background email dispatches."
+            "5. Automated Alert Watchdog: Configured automated background pre-mortem alert dispatches to registered recipient emails."
         )
         p_c4.paragraph_format.space_after = Pt(14)
 
