@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.env
+*.log
+email_previews/*
+!email_previews/.gitkeep
+pdf_reports/*
+!pdf_reports/.gitkeep
+docs_output/*
+!docs_output/.gitkeep
+.vscode/
+.idea/
