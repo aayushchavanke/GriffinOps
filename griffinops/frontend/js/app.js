@@ -1579,12 +1579,20 @@ function renderTopologySVG(data) {
   if (tier2.length === 0 && nodesList.length > 1) tier2.push(nodesList[1]);
   if (tier3.length === 0 && nodesList.length > 2) tier3.push(nodesList[2]);
 
+  var maxTierCount = Math.max(tier1.length, tier2.length, tier3.length, tier4.length, 3);
+  height = Math.max(340, maxTierCount * 75);
+  svg.setAttribute("height", height);
+
   function layoutTier(tierNodes, xPos) {
     var count = tierNodes.length;
-    tierNodes.forEach(function(n, idx) {
-      var yPos = count === 1 ? height * 0.5 : height * (0.22 + (idx / Math.max(1, count - 1)) * 0.56);
-      coords[n.id] = { x: xPos, y: yPos };
-    });
+    if (count === 1) {
+      coords[tierNodes[0].id] = { x: xPos, y: height * 0.5 };
+    } else {
+      var step = (height - 110) / Math.max(1, count - 1);
+      tierNodes.forEach(function(n, idx) {
+        coords[n.id] = { x: xPos, y: 55 + idx * step };
+      });
+    }
   }
 
   layoutTier(tier1, width * 0.12);
@@ -1669,7 +1677,7 @@ function renderTopologySVG(data) {
 
       var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
       g.setAttribute("cursor", "pointer");
-      g.setAttribute("title", n.id);
+      g.setAttribute("title", n.label || n.id);
       g.onclick = function() { handleNRTileDrilldown(n.id, 'latency_ms', status === 'critical' ? 3.8 : status === 'warning' ? 2.1 : 0.5); };
 
       // Outer soft ring
@@ -1692,14 +1700,19 @@ function renderTopologySVG(data) {
       dot.setAttribute("cx", pos.x); dot.setAttribute("cy", pos.y);
       dot.setAttribute("r", "5"); dot.setAttribute("fill", color);
 
-      // Service label
+      // Service label with clean truncation
       var text = document.createElementNS("http://www.w3.org/2000/svg", "text");
       text.setAttribute("x", pos.x); text.setAttribute("y", pos.y + 34);
       text.setAttribute("text-anchor", "middle");
       text.setAttribute("fill", currentTheme === "light" ? "#0f172a" : "#ffffff");
-      text.setAttribute("font-size", "11px"); text.setAttribute("font-weight", "700");
+      text.setAttribute("font-size", "10.5px"); text.setAttribute("font-weight", "700");
       text.setAttribute("font-family", "'JetBrains Mono', monospace");
-      text.textContent = n.id.replace("-service", "");
+      
+      var rawLabel = (n.label || n.id).replace(/-service/gi, "");
+      if (rawLabel.length > 20) {
+        rawLabel = rawLabel.substring(0, 18) + "…";
+      }
+      text.textContent = rawLabel;
 
       // Status alert badge above node
       if (status !== 'healthy') {
