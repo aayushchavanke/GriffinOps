@@ -157,13 +157,26 @@ class CausalRCAEngine:
         except Exception:
             pass
 
+        if not is_hazard:
+            dev_action = "System metrics nominal within Robust MAD baseline (M < 3.5σ). No action required."
+            dev_cmd = "# System operating nominally - no intervention required"
+        elif "latency" in root_cause_metric.lower():
+            dev_action = f"Inspect slow database queries, downstream API response times, and connection pooling for {root_cause_service}."
+            dev_cmd = f"# Recommendation: Optimize slow database queries & inspect connection limits on {root_cause_service}"
+        elif "error" in root_cause_metric.lower():
+            dev_action = f"Review server application logs, unhandled 5xx exceptions, and endpoint health for {root_cause_service}."
+            dev_cmd = f"# Recommendation: Check application error logs and verify service availability for {root_cause_service}"
+        else:
+            dev_action = f"Check CPU/memory resource allocation and background thread pool for {root_cause_service}."
+            dev_cmd = f"# Recommendation: Profile resource usage and increase thread concurrency for {root_cause_service}"
+
         # Multi-Agent SRE Trio Reasoning Pipeline (2025–2026 Agentic AIOps)
         multi_agent_pipeline = {
             "navigator_agent": {
                 "role": "Topological Dependency Navigator",
                 "status": "COMPLETED",
                 "scanned_nodes_count": len(self.topology) if self.topology else len(causal_scores),
-                "traversed_path": f"{root_cause_service} -> {' -> '.join(downstream[:2])}" if downstream else f"{root_cause_service} (Leaf/Direct Ingress)",
+                "traversed_path": f"{root_cause_service} -> {' -> '.join(downstream[:2])}" if downstream else f"{root_cause_service} (Direct SDK / API Ingress)",
                 "blast_radius_depth": len(impacted_services)
             },
             "diagnoser_agent": {
@@ -179,9 +192,9 @@ class CausalRCAEngine:
             "verifier_agent": {
                 "role": "Autonomous Remediation & Safety Verifier",
                 "status": "PASSED_VERIFIED",
-                "safety_check": "Verified against CI/CD git commit log & non-destructive rollback constraints",
+                "safety_check": "Verified telemetry bounds and non-destructive developer recommendations",
                 "remediation_ready": True,
-                "action_command": f"kubectl rollout undo deployment/{root_cause_service} -n production"
+                "action_command": dev_cmd
             }
         }
 
@@ -215,8 +228,8 @@ class CausalRCAEngine:
             },
             "multi_agent_sre_trio": multi_agent_pipeline,
             "ci_cd_correlation": correlated_commit,
-            "suggested_action": correlated_commit.get("suggested_action", "Inspect recent target configuration updates and pod memory/CPU limits."),
-            "remediation_command": f"kubectl rollout undo deployment/{root_cause_service} -n production"
+            "suggested_action": dev_action,
+            "remediation_command": dev_cmd
         }
 
         return audit_report

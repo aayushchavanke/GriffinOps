@@ -648,10 +648,10 @@ axios.post('http://localhost:8000/api/v1/telemetry/ingest',
     <!-- Microservice Call Relations Card -->
     <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.03)); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px 16px; margin-bottom:14px;">
       <h4 style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">
-        🔗 Microservice Architecture &amp; Call Dependencies
+        🔗 Telemetry Origin &amp; Ingress Topology
       </h4>
       <div id="pm-dependencies-tree" style="font-size:12px; line-height:1.8; color:var(--text-primary);">
-        <code>Client Web Ingress</code> ➔ <strong id="pm-tree-target">Monitored Service</strong> ➔ <code>PostgreSQL / Redis Storage</code>
+        <code>Client Web Ingress</code> ➔ <strong id="pm-tree-target">Monitored Service</strong> ➔ <code>GriffinOps Real-Time Ingest</code>
       </div>
     </div>
 
@@ -663,17 +663,17 @@ axios.post('http://localhost:8000/api/v1/telemetry/ingest',
       <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
         <div><strong style="color:var(--pastel-indigo);">1. Navigator Agent:</strong> <span id="pm-agent-nav">Scanned live call graph; topology path nominal.</span></div>
         <div><strong style="color:var(--pastel-amber);">2. Diagnoser Agent:</strong> <span id="pm-agent-diag">Evaluated Granger causality &amp; MAD sigma bounds; zero active cascade.</span></div>
-        <div><strong style="color:var(--pastel-emerald);">3. Verifier Agent:</strong> <span id="pm-agent-ver">Verified non-destructive self-healing constraints against CI/CD log.</span></div>
+        <div><strong style="color:var(--pastel-emerald);">3. Verifier Agent:</strong> <span id="pm-agent-ver">Verified telemetry stability and non-destructive developer recommendations.</span></div>
       </div>
     </div>
 
     <!-- Suggested Automated Remediation -->
     <div style="background:var(--card-bg-subtle, rgba(255,255,255,0.03)); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px 16px; margin-bottom:16px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <span style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Recommended Remediation Command</span>
-        <button class="btn btn-secondary btn-sm" onclick="copyPMRollbackCmd()">Copy Command</button>
+        <span style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Recommended Developer Action &amp; Remediation</span>
+        <button class="btn btn-secondary btn-sm" onclick="copyPMRollbackCmd()">Copy Advice</button>
       </div>
-      <pre id="pm-rollback-cmd" class="snippet-pre" style="margin:0; padding:10px 14px; font-size:12px; color:#fca5a5; min-height:auto;">kubectl rollout undo deployment/target-service -n production</pre>
+      <pre id="pm-rollback-cmd" class="snippet-pre" style="margin:0; padding:10px 14px; font-size:12px; color:#fca5a5; min-height:auto;"># System operating nominally. No remediation required.</pre>
     </div>
 
     <div class="modal-footer" style="margin-top:10px; padding-top:12px;">

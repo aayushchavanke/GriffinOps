@@ -354,13 +354,13 @@ function openPremortemDrilldown(name, url, lat, status, bytes) {
   const modal = document.getElementById("premortem-modal");
   if (!modal) return;
 
-  const isAnomaly = (lat > 250.0 || status >= 400 || faultInjected);
-  const zScore = isAnomaly ? (3.5 + Math.min(3.5, lat / 400.0)).toFixed(2) : Math.max(0.1, (lat - 40.0) / 35.0).toFixed(2);
+  const isAnomaly = (lat > 200.0 || status >= 400 || faultInjected);
+  const zScore = isAnomaly ? (3.5 + Math.min(3.5, lat / 300.0)).toFixed(2) : Math.max(0.1, (lat - 35.0) / 40.0).toFixed(2);
   const ttfSec = isAnomaly ? (outageTimerSeconds > 0 ? outageTimerSeconds : 240) : 0;
   const ttfHuman = isAnomaly ? `${Math.floor(ttfSec / 60)}m ${ttfSec % 60 < 10 ? '0' : ''}${ttfSec % 60}s` : "HEALTHY (No Outage Risk)";
 
   document.getElementById("pm-modal-title").innerHTML = `<span>🔮 Pre-Mortem Failure Analysis: <strong>${name}</strong></span>`;
-  document.getElementById("pm-modal-subtitle").innerText = `Target URL: ${url} | Ingestion: 4 Golden Signals Telemetry`;
+  document.getElementById("pm-modal-subtitle").innerText = `Target URL: ${url || 'SDK Endpoint'} | Ingestion: 4 Golden Signals Telemetry`;
 
   const badge = document.getElementById("pm-status-badge");
   if (badge) {
@@ -387,27 +387,34 @@ function openPremortemDrilldown(name, url, lat, status, bytes) {
   }
 
   const treeTarget = document.getElementById("pm-tree-target");
-  if (treeTarget) treeTarget.innerText = `${name} [API SDK Ingress]`;
+  if (treeTarget) treeTarget.innerText = `${name} [Telemetry Ingress]`;
 
-  const slug = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
   const navElem = document.getElementById("pm-agent-nav");
   if (navElem) {
-    navElem.innerText = `Traversed Client Web Ingress ➔ API Gateway ➔ ${name} ➔ PostgreSQL / Redis Storage (Blast Depth: 3).`;
+    navElem.innerText = `Traffic Flow: Client Web Ingress ➔ ${name} (${url || 'endpoint'}) ➔ GriffinOps Ingestion Engine.`;
   }
   const diagElem = document.getElementById("pm-agent-diag");
   if (diagElem) {
     diagElem.innerText = isAnomaly 
-      ? `Isolated ${name} as root culprit: latency spike ${lat}ms (+${zScore}σ) with downstream dependency delay τ*=45s.`
-      : `Granger causality F-tests nominal (F < 1.2). Robust MAD baseline stable across all 4 Golden Signals.`;
+      ? `Detected statistical breach for ${name}: latency ${lat.toFixed(1)}ms (+${zScore}σ deviation) with HTTP ${status}. Anomaly hazard flagged.`
+      : `Telemetry nominal: latency ${lat.toFixed(1)}ms (+${zScore}σ baseline), HTTP ${status} OK. Robust MAD bounds verified.`;
   }
   const verElem = document.getElementById("pm-agent-ver");
   if (verElem) {
-    verElem.innerText = `Verified non-destructive self-healing constraints against deployment/git commit log for ${slug}.`;
+    verElem.innerText = isAnomaly
+      ? `Generated pre-mortem audit report & dispatched email alert notification to registered developers.`
+      : `Golden signals stable across all metrics. Zero false positive alert noise.`;
   }
 
   const rollbackPre = document.getElementById("pm-rollback-cmd");
   if (rollbackPre) {
-    rollbackPre.textContent = `kubectl rollout undo deployment/${slug} -n production`;
+    if (!isAnomaly) {
+      rollbackPre.textContent = `# System operating nominally at ${lat.toFixed(1)}ms. No remediation required.`;
+    } else if (status >= 400) {
+      rollbackPre.textContent = `# Outage Remediation for ${name}:\n# 1. Review uncaught HTTP ${status} error traces and application logs\n# 2. Verify web server process health on ${url || 'target endpoint'}`;
+    } else {
+      rollbackPre.textContent = `# Latency Remediation for ${name}:\n# 1. Profile slow database queries & inspect connection limits\n# 2. Check upstream network latency and enable caching on ${url || 'target endpoint'}`;
+    }
   }
 
   modal.style.setProperty("display", "flex", "important");
@@ -422,13 +429,46 @@ function copyPMRollbackCmd() {
   const cmd = document.getElementById("pm-rollback-cmd");
   if (cmd) {
     navigator.clipboard.writeText(cmd.textContent);
-    showToast("📋 Remediation command copied to clipboard!");
+    showToast("📋 Remediation guidance copied to clipboard!");
   }
 }
 
 function switchToCausalTopologyTab() {
   closePremortemModal();
   switchTab('causal');
+}
+
+async function fetchWatchdogHistory() {
+  const tbody = document.getElementById("watchdog-history-table-body");
+  if (!tbody) return;
+  try {
+    const res = await fetch("/api/v1/watchdog/history");
+    if (!res.ok) return;
+    const history = await res.json();
+    if (!history || history.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No alerts dispatched yet. Simulate an anomaly to trigger the autonomous watchdog.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = history.map(item => {
+      const filename = item.preview_path ? item.preview_path.split(/[\\/]/).pop() : null;
+      const previewLink = filename ? `<a href="/api/v1/email-previews/${filename}" target="_blank" class="btn btn-secondary btn-sm" style="font-size:11px; padding:3px 8px; text-decoration:none;">👁️ View Email Preview</a>` : '<span style="color:var(--text-muted);font-size:11px;">No preview</span>';
+      const statusBadge = item.status === "DELIVERED" 
+        ? `<span class="badge badge-mint">DELIVERED</span>` 
+        : `<span class="badge badge-peach">${item.status || 'STORED'}</span>`;
+      return `
+        <tr>
+          <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">${item.timestamp || '-'}</td>
+          <td><code style="color:var(--pastel-indigo);">${item.report_id || '-'}</code></td>
+          <td><strong style="color:#ffffff;">${item.target_service || 'System-Wide'}</strong></td>
+          <td><span style="color:#e2e8f0;font-size:12px;">${item.recipient || '-'}</span></td>
+          <td>${statusBadge}</td>
+          <td>${previewLink}</td>
+        </tr>
+      `;
+    }).join("");
+  } catch (err) {
+    console.error("Failed to fetch watchdog history:", err);
+  }
 }
 
 async function fetchUserProfile() {

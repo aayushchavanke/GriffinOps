@@ -245,8 +245,6 @@ def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
     else:
         site_name = info["name"]
         target_url = info.get("target_url") or info.get("endpoint") or f"https://{site_name.lower().replace(' ', '-')}.internal"
-        info["latest_latency_ms"] = req.latency_ms
-
     if real_website_monitor:
         real_website_monitor.record_telemetry(
             url=target_url,
@@ -256,8 +254,30 @@ def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
             api_key=req.api_key,
             site_name=site_name
         )
-    
-    return {"status": "INGESTED", "api_key": req.api_key, "recorded_latency_ms": req.latency_ms}
+
+    alert_info = None
+    if (req.latency_ms >= 200.0 or req.status_code >= 400) and watchdog:
+        report = watchdog._evaluate_and_dispatch(force_trigger=True)
+        if report:
+            latest_entry = watchdog.dispatch_log[0] if watchdog.dispatch_log else None
+            preview_fn = os.path.basename(latest_entry["preview_path"]) if (latest_entry and latest_entry.get("preview_path")) else None
+            alert_info = {
+                "alert_dispatched": True,
+                "report_id": report.get("report_id"),
+                "severity": report.get("severity_level"),
+                "recipients": watchdog.registered_developer_emails,
+                "preview_filename": preview_fn,
+                "preview_url": f"/api/v1/email-previews/{preview_fn}" if preview_fn else None
+            }
+
+    return {
+        "status": "INGESTED",
+        "api_key": req.api_key,
+        "recorded_latency_ms": req.latency_ms,
+        "status_code": req.status_code,
+        "site_name": site_name,
+        "alert": alert_info
+    }
 
 @router.post("/telemetry/test-ping")
 def send_test_telemetry_ping(req: TestPingRequest):
