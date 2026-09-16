@@ -14,19 +14,17 @@ class ZScoreNormalizer:
     def __init__(self, window_size: int = 30, epsilon: float = 1e-5):
         self.window_size = window_size
         self.epsilon = epsilon
-        self.services = MICROSERVICES
         self.signals = SIGNALS
         self.stats: Dict[str, Dict[str, Dict[str, float]]] = {}
-        self._init_default_stats()
 
-    def _init_default_stats(self):
-        for svc in self.services:
+    def _ensure_stats_for_service(self, svc: str):
+        if svc not in self.stats:
             self.stats[svc] = {
-                "latency_ms": {"mean": 50.0, "std": 10.0},
-                "traffic_rps": {"mean": 150.0, "std": 35.0},
-                "error_rate": {"mean": 0.002, "std": 0.001},
-                "cpu_percent": {"mean": 40.0, "std": 8.0},
-                "memory_percent": {"mean": 50.0, "std": 7.0},
+                "latency_ms": {"mean": 45.0, "std": 10.0},
+                "traffic_rps": {"mean": 10.0, "std": 3.0},
+                "error_rate": {"mean": 0.001, "std": 0.001},
+                "cpu_percent": {"mean": 30.0, "std": 5.0},
+                "memory_percent": {"mean": 40.0, "std": 5.0},
             }
 
     def compute_z_scores(self, telemetry_by_service: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
@@ -37,6 +35,7 @@ class ZScoreNormalizer:
             if "timestamp" in df.columns:
                 z_df["timestamp"] = df["timestamp"]
 
+            self._ensure_stats_for_service(svc)
             svc_stats = self.stats.get(svc, {})
 
             for sig in self.signals:

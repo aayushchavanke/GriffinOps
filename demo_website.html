@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample Web App — Monitored by GriffinOps</title>
+  
+  <!-- ───────────────────────── GRIFFINOPS 1-LINE EMBED SDK ────────────────── -->
+  <script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="gop_live_demo001"></script>
+
+  <style>
+    :root {
+      --bg: #0b101d;
+      --card-bg: rgba(255, 255, 255, 0.05);
+      --border: rgba(255, 255, 255, 0.1);
+      --accent: #6366f1;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 580px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      backdrop-filter: blur(12px);
+    }
+    h1 {
+      font-size: 22px;
+      margin-top: 0;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    p {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .badge {
+      display: inline-block;
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    button:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    button.warning {
+      background: #f59e0b;
+    }
+    button.danger {
+      background: #f43f5e;
+    }
+    .log-box {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #6ee7b7;
+      min-height: 50px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    a.dash-link {
+      color: #818cf8;
+      text-decoration: none;
+      font-size: 13px;
+      display: inline-block;
+      margin-top: 16px;
+      font-weight: 600;
+    }
+    a.dash-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="badge">🦅 GriffinOps Real-Time SDK Active</div>
+    <h1>Sample Web Application</h1>
+    <p>
+      This page demonstrates the <strong>GriffinOps 1-Line JavaScript SDK</strong>. Page load latency and error metrics are automatically streamed directly to your GriffinOps SRE dashboard.
+    </p>
+
+    <div class="btn-group">
+      <button onclick="sendSampleMetric(35, 200)">
+        <span>⚡ Send Normal Telemetry Ping</span>
+        <span>35 ms &bull; HTTP 200</span>
+      </button>
+      <button class="warning" onclick="sendSampleMetric(420, 200)">
+        <span>🐢 Simulate High Latency (Slow Query)</span>
+        <span>420 ms &bull; HTTP 200</span>
+      </button>
+      <button class="danger" onclick="sendSampleMetric(850, 500)">
+        <span>💥 Simulate Server Error (Outage Spike)</span>
+        <span>850 ms &bull; HTTP 500</span>
+      </button>
+    </div>
+
+    <div style="font-size: 11px; color: var(--muted); margin-bottom: 6px; font-weight: 700; text-transform: uppercase;">Telemetry Stream Log:</div>
+    <div class="log-box" id="logBox">
+      [SDK Ready] Listening for real-time browser events...
+    </div>
+
+    <a class="dash-link" href="http://localhost:8000" target="_blank">
+      Open GriffinOps SRE Dashboard ➔
+    </a>
+  </div>
+
+  <script>
+    function logMessage(msg) {
+      const box = document.getElementById("logBox");
+      const time = new Date().toLocaleTimeString();
+      box.innerHTML = `[${time}] ${msg}<br>` + box.innerHTML;
+    }
+
+    function sendSampleMetric(latency, status) {
+      logMessage(`Streaming metric: Latency=${latency}ms, Status=${status}...`);
+      if (window.GriffinOps && window.GriffinOps.sendMetric) {
+        window.GriffinOps.sendMetric({
+          latency_ms: latency,
+          status_code: status,
+          endpoint: window.location.href
+        });
+        logMessage(`✅ Successfully ingested into GriffinOps!`);
+      } else {
+        fetch('http://localhost:8000/api/v1/telemetry/ingest', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-GriffinOps-API-Key': 'gop_live_demo001'
+          },
+          body: JSON.stringify({
+            api_key: 'gop_live_demo001',
+            endpoint: window.location.href,
+            latency_ms: latency,
+            status_code: status
+          })
+        }).then(function(res) {
+          if (res.ok) logMessage(`✅ Successfully ingested into GriffinOps! Check your dashboard.`);
+          else logMessage(`❌ Ingestion error (HTTP ${res.status})`);
+        }).catch(function(err) {
+          logMessage(`❌ Network error: ${err.message}`);
+        });
+      }
+    }
+  </script>
+</body>
+</html>

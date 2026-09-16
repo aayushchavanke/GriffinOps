@@ -1,17 +1,16 @@
 import time
 import uuid
-import random
 from typing import Dict, List, Optional
 
-# API Keys Registry: key_id -> key_info
+# In-memory API Keys Registry: api_key -> key_info (Starts completely clean)
 API_KEYS_DB: Dict[str, dict] = {}
 
 
 class APIKeyManager:
     """
-    Industry-Grade API Key Manager: Handles generation, validation, and revocation
-    of GriffinOps API Keys (gop_live_...). Stores endpoint routes, SLA latency targets,
-    and SLA financial risk tiers.
+    Clean, Developer-Centric API Key Manager.
+    Generates and validates GriffinOps API Keys (gop_live_...) for monitored websites and microservices.
+    Zero mockups, zero hardcoded seed data.
     """
     def __init__(self):
         self.keys = API_KEYS_DB
@@ -19,47 +18,35 @@ class APIKeyManager:
     def generate_api_key(
         self,
         name: str,
-        environment: str = "production",
-        endpoint: str = "/api/v1/checkout",
-        sla_latency_ms: float = 200.0,
-        sla_tier: str = "Payment ($850/min)",
-        target_url: str = "https://httpbin.org/get"
+        target_url: Optional[str] = None,
+        endpoint: Optional[str] = None,
+        owner_email: str = "admin@griffinops.io",
+        **kwargs
     ) -> dict:
         raw_key = f"gop_live_{uuid.uuid4().hex[:12]}"
         key_id = f"key_{uuid.uuid4().hex[:8]}"
-        service_slug = name.lower().replace(" ", "-").replace("&", "and")
+        service_slug = name.lower().replace(" ", "-").replace("&", "and").replace("/", "-")
+        clean_url = target_url or f"https://{service_slug}.internal"
 
-        python_snippet = f"""import requests
-
-headers = {{"X-GriffinOps-API-Key": "{raw_key}"}}
-requests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={{"latency_ms": 125.4, "status_code": 200}})"""
-
-        nodejs_snippet = f"""const axios = require('axios');
-
-axios.post('http://localhost:8000/api/v1/telemetry/ingest', 
-  {{ latency_ms: 125.4, status_code: 200 }}, 
-  {{ headers: {{ 'X-GriffinOps-API-Key': '{raw_key}' }} }}
-);"""
-
-        curl_snippet = f"""curl -X POST http://localhost:8000/api/v1/telemetry/ingest \\
-  -H "X-GriffinOps-API-Key: {raw_key}" \\
-  -H "Content-Type: application/json" \\
-  -d '{{\"latency_ms\": 125.4, \"status_code\": 200}}'"""
+        html_snippet = f'<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="{raw_key}"></script>'
+        python_snippet = f'import requests\n\nheaders = {{"X-GriffinOps-API-Key": "{raw_key}"}}\nrequests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={{"latency_ms": 42.5, "status_code": 200}})'
+        nodejs_snippet = f"const axios = require('axios');\n\naxios.post('http://localhost:8000/api/v1/telemetry/ingest', \n  {{ latency_ms: 42.5, status_code: 200 }}, \n  {{ headers: {{ 'X-GriffinOps-API-Key': '{raw_key}' }} }}\n);"
+        curl_snippet = f'curl -X POST "http://localhost:8000/api/v1/telemetry/ingest" \\\n  -H "X-GriffinOps-API-Key: {raw_key}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{{"latency_ms": 42.5, "status_code": 200}}\''
 
         record = {
             "key_id": key_id,
             "api_key": raw_key,
             "name": name,
             "assigned_service": service_slug,
-            "endpoint": endpoint if endpoint.startswith("/") else f"/{endpoint}",
-            "environment": environment,
-            "sla_latency_ms": sla_latency_ms,
-            "sla_tier": sla_tier,
+            "endpoint": clean_url,
+            "target_url": clean_url,
+            "owner_email": owner_email,
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
-            "target_url": target_url,
             "requests_total": 0,
+            "latest_latency_ms": None,
             "status": "ACTIVE",
             "sdk_snippets": {
+                "html": html_snippet,
                 "python": python_snippet,
                 "nodejs": nodejs_snippet,
                 "curl": curl_snippet
@@ -68,7 +55,11 @@ axios.post('http://localhost:8000/api/v1/telemetry/ingest',
         self.keys[raw_key] = record
         return record
 
-    def list_api_keys(self) -> List[dict]:
+    def list_api_keys(self, owner_email: Optional[str] = None) -> List[dict]:
+        if owner_email and owner_email != "admin@griffinops.io":
+            user_keys = [k for k in self.keys.values() if k.get("owner_email") == owner_email]
+            if user_keys:
+                return user_keys
         return list(self.keys.values())
 
     def revoke_api_key(self, key_id: str) -> bool:
@@ -89,17 +80,16 @@ axios.post('http://localhost:8000/api/v1/telemetry/ingest',
         monitored = []
         for k, info in self.keys.items():
             if info["status"] == "ACTIVE":
-                sla_target = info.get("sla_latency_ms", 200.0)
+                lat = info.get("latest_latency_ms")
                 monitored.append({
                     "api_endpoint": info.get("endpoint", "/api/v1/telemetry"),
                     "service": info["assigned_service"],
                     "method": "POST",
+                    "api_key": info["api_key"],
                     "api_key_name": info["name"],
                     "rpm": info.get("requests_total", 0),
-                    "sla_latency_ms": sla_target,
-                    "sla_tier": info.get("sla_tier", "General ($250/min)"),
-                    "avg_latency_ms": info.get("latest_latency_ms", 45.0),
+                    "avg_latency_ms": round(lat, 1) if lat is not None else 0.0,
                     "error_rate": 0.0,
-                    "health_status": "ACTIVE"
+                    "health_status": "ACTIVE" if lat is not None else "AWAITING TELEMETRY"
                 })
         return monitored

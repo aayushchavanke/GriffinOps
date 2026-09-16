@@ -11,11 +11,11 @@ from griffinops.models.tcn_forecaster import TCNPredictorEngine
 from griffinops.rca.causal_engine import CausalRCAEngine
 
 
-class TestRealWebsiteMonitoring(unittest.TestCase):
+class TestAPIMonitoredWebsites(unittest.TestCase):
     """
-    Live Telemetry Verification Test Suite for GriffinOps.
-    Executes real live HTTP GET telemetry pings against external web targets
-    and runs the full 2026 SOTA RCA (LagRCA + Granger Causality + RCAEval).
+    API/SDK Monitored Website Verification Test Suite for GriffinOps.
+    Tests telemetry ingestion, robust MAD normalization, PyTorch TCN forecasting,
+    and causal discovery.
     """
 
     def setUp(self):
@@ -25,25 +25,27 @@ class TestRealWebsiteMonitoring(unittest.TestCase):
         self.tcn_predictor = TCNPredictorEngine()
 
         sites = [
-            {"name": "HTTPBin GET API", "url": "https://httpbin.org/get", "type": "REST API"},
-            {"name": "GitHub Platform", "url": "https://github.com", "type": "Live Web App"},
-            {"name": "Google Search Gateway", "url": "https://google.com", "type": "Live Web App"},
-            {"name": "Wikipedia Engine", "url": "https://wikipedia.org", "type": "Live Web App"}
+            {"name": "E-Commerce Web App", "url": "https://store.example.com", "type": "Live Web App (SDK)", "api_key": "gop_live_store01"},
+            {"name": "Checkout API Gateway", "url": "https://api.example.com/checkout", "type": "Microservice Ingress (API)", "api_key": "gop_live_chk02"},
+            {"name": "Auth Session Service", "url": "https://auth.example.com/session", "type": "Security Microservice (API)", "api_key": "gop_live_auth03"},
+            {"name": "Postgres Database", "url": "tcp://db.example.internal:5432", "type": "Datastore Cluster", "api_key": "gop_live_db04"}
         ]
         for site in sites:
-            self.monitor.add_monitored_site(name=site["name"], url=site["url"], site_type=site["type"])
+            self.monitor.add_monitored_site(name=site["name"], url=site["url"], site_type=site["type"], api_key=site["api_key"])
 
-    def test_live_website_ping_and_rca(self):
-        # Perform 2 consecutive ping cycles
-        for _ in range(2):
-            pings = self.monitor.ping_all_sites()
-            time.sleep(0.5)
+    def test_api_website_telemetry_and_rca(self):
+        # Simulate incoming white-box SDK telemetry
+        for _ in range(5):
+            self.monitor.record_telemetry("https://store.example.com", latency_ms=42.0, status_code=200, api_key="gop_live_store01")
+            self.monitor.record_telemetry("https://api.example.com/checkout", latency_ms=185.0, status_code=200, api_key="gop_live_chk02")
+            self.monitor.record_telemetry("https://auth.example.com/session", latency_ms=35.0, status_code=200, api_key="gop_live_auth03")
+            self.monitor.record_telemetry("tcp://db.example.internal:5432", latency_ms=15.0, status_code=200, api_key="gop_live_db04")
 
-        telemetry = {}
-        for url, data in pings.items():
-            name = data["name"].lower().replace(" ", "-")
-            df = self.monitor.get_real_telemetry_dataframe(url)
-            telemetry[name] = df
+        metrics = self.monitor.get_live_site_metrics()
+        self.assertEqual(len(metrics), 4)
+
+        telemetry = self.monitor.get_all_real_telemetry()
+        self.assertTrue(len(telemetry) >= 2)
 
         z_scores = self.normalizer.compute_z_scores(telemetry)
         tensor, service_names = self.normalizer.to_tensor_format(z_scores, sequence_length=30)

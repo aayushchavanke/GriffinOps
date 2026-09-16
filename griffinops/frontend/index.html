@@ -126,9 +126,9 @@
           </span>
           <span id="theme-toggle-text">Light Mode</span>
         </button>
-        <button class="btn btn-secondary btn-sm" onclick="openAddRealSiteModal()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          + Monitor Website / API
+        <button class="btn btn-secondary btn-sm" onclick="openCreateKeyModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          + Register Website / API
         </button>
         <button class="btn btn-secondary btn-sm" onclick="downloadPDFReport()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -230,53 +230,32 @@
           </section>
         </div>
 
-        <!-- Monitored Live Websites Table -->
+        <!-- Monitored Websites & Microservices Table (Via GriffinOps API/SDK) -->
         <section class="card">
           <div class="card-header">
-            <h2>Live Monitored Real Web Apps &amp; APIs</h2>
-            <button class="btn btn-secondary btn-sm" onclick="openAddRealSiteModal()">+ Add Monitored Target</button>
+            <div>
+              <h2>Monitored Websites &amp; Microservices (Via GriffinOps API / SDK)</h2>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">
+                Real-time white-box telemetry streamed via 1-Line Embed SDK &amp; API Keys. Click any row for Pre-Mortem failure analysis.
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openCreateKeyModal()">+ Register Website / API</button>
           </div>
           <div class="table-wrap">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Target Name</th>
-                  <th>Monitored URL</th>
-                  <th>Category</th>
+                  <th>Application / Website Name</th>
+                  <th>Monitored Endpoint / URL</th>
+                  <th>Assigned API Key</th>
                   <th>Measured Latency</th>
                   <th>HTTP Status</th>
-                  <th>Payload Size</th>
-                  <th>Action</th>
+                  <th>Robust MAD Health</th>
+                  <th>Pre-Mortem Analysis</th>
                 </tr>
               </thead>
               <tbody id="real-websites-table-body">
-                <tr><td colspan="7" class="empty-state"><p>Loading live website telemetry…</p></td></tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- Monitored API Anomaly Table -->
-        <section class="card">
-          <div class="card-header">
-            <h2>Live API Endpoint Ingestion Monitor</h2>
-            <span class="badge badge-amber">Click row to drilldown</span>
-          </div>
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>API Endpoint</th>
-                  <th>Service</th>
-                  <th>RPM</th>
-                  <th>Avg Latency</th>
-                  <th>Error Rate</th>
-                  <th>SLA Risk ($/min)</th>
-                  <th>Health</th>
-                </tr>
-              </thead>
-              <tbody id="overview-api-table-body">
-                <tr><td colspan="7" class="empty-state"><p>Loading monitored APIs…</p></td></tr>
+                <tr><td colspan="7" class="empty-state"><p>Loading monitored applications &amp; websites telemetry…</p></td></tr>
               </tbody>
             </table>
           </div>
@@ -490,80 +469,76 @@
 </div>
 
 <!-- ═══════════════ CREATE API KEY MODAL ══════════════════════════════════ -->
+<!-- ═══════════════ CREATE API KEY MODAL ══════════════════════════════════ -->
 <div class="modal-overlay" id="create-key-modal">
-  <div class="modal-card" style="max-width:620px;">
-    <!-- Step 1 -->
+  <div class="modal-card" style="max-width:580px;">
+    <!-- Step 1: Simple Input -->
     <div id="key-modal-step-form">
       <div class="modal-header">
-        <h3>Generate Production API Key</h3>
+        <h3>Connect Website &amp; Generate API Key</h3>
         <button class="close-btn" onclick="closeCreateKeyModal()">&times;</button>
       </div>
-      <div class="form-group"><label>API Key / Service Name</label><input type="text" id="new-key-name" placeholder="e.g. Payment Gateway API"></div>
-      <div class="form-group"><label>Microservice Endpoint Route</label><input type="text" id="new-key-endpoint" placeholder="e.g. /api/v1/checkout"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-group"><label>SLA Max Latency (ms)</label><input type="number" id="new-key-sla" value="200"></div>
-        <div class="form-group"><label>Environment</label>
-          <select id="new-key-env">
-            <option value="production">production</option>
-            <option value="staging">staging</option>
-            <option value="development">development</option>
-          </select>
-        </div>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px; line-height:1.6;">
+        Enter your website or project name below. GriffinOps will instantly generate your API Key and a 1-line script tag to embed into your website.
+      </p>
+      <div class="form-group">
+        <label>Website / Project Name</label>
+        <input type="text" id="new-key-name" placeholder="e.g. My E-Commerce Store or Portfolio Site" autofocus>
       </div>
-      <div class="form-group"><label>Business Risk SLA Tier</label>
-        <select id="new-key-tier">
-          <option value="Payment ($850/min)">Payment Service — $850/min High Risk</option>
-          <option value="Auth ($650/min)">Auth &amp; Session — $650/min Med-High Risk</option>
-          <option value="Search ($400/min)">Search &amp; Catalog — $400/min Med Risk</option>
-          <option value="General ($250/min)">General Microservice — $250/min Standard</option>
-        </select>
-      </div>
-      <div class="modal-footer">
+      <div class="modal-footer" style="margin-top:18px;">
         <button class="btn btn-secondary" onclick="closeCreateKeyModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitCreateAPIKey()">Generate &amp; Get Code</button>
+        <button class="btn btn-primary" onclick="submitCreateAPIKey()">Generate API Key &amp; Get Code ➔</button>
       </div>
     </div>
-    <!-- Step 2 -->
+
+    <!-- Step 2: Instant Code & 1-Click Test -->
     <div id="key-modal-step-success" style="display:none;">
       <div class="modal-header">
-        <h3>API Key Generated</h3>
+        <h3>🎉 API Key &amp; Integration Code Ready</h3>
         <button class="close-btn" onclick="closeCreateKeyModal()">&times;</button>
       </div>
       <div style="background:var(--pastel-indigo-light);border:1px solid var(--pastel-indigo-border);padding:14px 16px;border-radius:12px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
         <div>
-          <span style="font-size:10px;color:var(--text-muted);display:block;text-transform:uppercase;letter-spacing:.4px;">Your Generated API Key</span>
+          <span style="font-size:10px;color:var(--text-muted);display:block;text-transform:uppercase;letter-spacing:.4px;">Your GriffinOps API Key</span>
           <code id="modal-generated-key" style="font-size:14px;font-weight:700;color:var(--pastel-indigo-text);font-family:var(--font-mono);">gop_live_…</code>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="copyGeneratedKeyText()">Copy Key</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="copyGeneratedKeyText()">Copy Key</button>
+          <button class="btn btn-primary btn-sm" onclick="sendModalTestPing()" id="btn-modal-test-ping">⚡ Send Test Ping</button>
+        </div>
       </div>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Stream real-time telemetry into GriffinOps using your preferred snippet:</p>
-      <div class="auth-tabs" style="margin-bottom:12px;">
-        <button class="auth-tab-btn active" id="modal-btn-html" onclick="switchModalSnippetTab('html')">HTML &lt;script&gt;</button>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;">
+        Paste this 1-line tag into your website's HTML <code>&lt;head&gt;</code> to start monitoring:
+      </p>
+      <div class="auth-tabs" style="margin-bottom:10px;">
+        <button class="auth-tab-btn active" id="modal-btn-html" onclick="switchModalSnippetTab('html')">HTML &lt;script&gt; (Recommended)</button>
         <button class="auth-tab-btn" id="modal-btn-python" onclick="switchModalSnippetTab('python')">Python</button>
         <button class="auth-tab-btn" id="modal-btn-js" onclick="switchModalSnippetTab('js')">Node.js</button>
         <button class="auth-tab-btn" id="modal-btn-curl" onclick="switchModalSnippetTab('curl')">cURL</button>
       </div>
-      <pre id="modal-code-box-html" class="snippet-pre" style="color:#6ee7b7;"><!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->
+      <pre id="modal-code-box-html" class="snippet-pre" style="color:#6ee7b7;"><!-- GriffinOps 1-Line JavaScript Telemetry SDK -->
 <script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="gop_live_demo"></script></pre>
       <pre id="modal-code-box-python" class="snippet-pre" style="display:none;color:#a5b4fc;">import requests
 
 headers = {"X-GriffinOps-API-Key": "gop_live_demo"}
-requests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 125.4, "status_code": 200})</pre>
+requests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 42.5, "status_code": 200})</pre>
       <pre id="modal-code-box-js" class="snippet-pre" style="display:none;color:#93c5fd;">const axios = require('axios');
 
 axios.post('http://localhost:8000/api/v1/telemetry/ingest', 
-  { latency_ms: 125.4, status_code: 200 }, 
+  { latency_ms: 42.5, status_code: 200 }, 
   { headers: { 'X-GriffinOps-API-Key': 'gop_live_demo' } }
 );</pre>
       <pre id="modal-code-box-curl" class="snippet-pre" style="display:none;color:#fca5a5;">curl -X POST "http://localhost:8000/api/v1/telemetry/ingest" \
   -H "X-GriffinOps-API-Key: gop_live_demo" \
   -H "Content-Type: application/json" \
-  -d '{"latency_ms": 125.4, "status_code": 200}'</pre>
-      <div class="modal-footer">
+  -d '{"latency_ms": 42.5, "status_code": 200}'</pre>
+      <div class="modal-footer" style="margin-top:14px;">
         <button class="btn btn-secondary" onclick="copyModalActiveSnippet()">Copy Code</button>
-        <button class="btn btn-primary" onclick="closeCreateKeyModal()">Done</button>
+        <button class="btn btn-primary" onclick="closeCreateKeyModal()">Done &amp; View Dashboard ➔</button>
       </div>
     </div>
+  </div>
+</div>
   </div>
 </div>
 

@@ -1,63 +1,72 @@
 /**
- * GriffinOps Real-Time Telemetry & Predictive Observability SDK
- * Single-line Embed Script for Hosted Websites & Microservices
+ * GriffinOps Autonomous Predictive Observability & AI SRE Copilot SDK
+ * Single-line Embed Script for Monitored Websites & Web Applications
  *
  * Usage:
  * <script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="gop_live_YOUR_KEY"></script>
  */
 (function() {
   const currentScript = document.currentScript || Array.from(document.querySelectorAll('script')).pop();
-  const apiKey = currentScript ? currentScript.getAttribute('data-api-key') : 'gop_live_default';
-  const serverUrl = currentScript && currentScript.src ? new URL(currentScript.src).origin : window.location.origin;
+  const apiKey = (currentScript && currentScript.getAttribute('data-api-key')) || 'gop_live_default';
+  const serverUrl = (currentScript && currentScript.src) ? new URL(currentScript.src).origin : window.location.origin;
 
-  console.log(`[GriffinOps SDK] Initializing Real-Time Monitoring with API Key: ${apiKey}`);
+  console.log(`[GriffinOps SDK] Initialized for API Key: ${apiKey}`);
 
-  // Auto-collect page load latency & error telemetry
-  window.addEventListener('load', function() {
-    setTimeout(sendTelemetry, 1000);
-  });
+  function sendTelemetry(opts) {
+    opts = opts || {};
+    const navEntries = performance.getEntriesByType ? performance.getEntriesByType('navigation') : [];
+    let loadTimeMs = 42.0;
+    if (navEntries.length > 0 && navEntries[0].duration) {
+      loadTimeMs = Math.max(2.0, Math.round(navEntries[0].duration));
+    }
+    if (opts.latency_ms) {
+      loadTimeMs = opts.latency_ms;
+    }
 
-  // Track unhandled errors
-  window.addEventListener('error', function(event) {
-    sendTelemetry({ error: event.message, filename: event.filename, lineno: event.lineno });
-  });
-
-  function sendTelemetry(extraData) {
-    const navEntries = performance.getEntriesByType('navigation');
-    const loadTimeMs = navEntries.length > 0 ? Math.max(1.0, Math.round(navEntries[0].duration)) : 42.0;
     const cleanUrl = window.location.href.split('#')[0];
-    
-    // 1. Auto-register site target in GriffinOps
-    fetch(`${serverUrl}/api/v1/real-monitor/add-site`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-GriffinOps-API-Key': apiKey
-      },
-      body: JSON.stringify({
-        name: document.title || 'Hosted Web Application',
-        url: cleanUrl,
-        site_type: window.location.protocol === 'file:' ? 'Local Web Document' : 'Hosted Web App'
-      })
-    }).catch(() => {});
+    const payload = {
+      api_key: apiKey,
+      endpoint: opts.endpoint || cleanUrl,
+      latency_ms: loadTimeMs,
+      status_code: opts.status_code || 200,
+      payload_bytes: opts.payload_bytes || (document.documentElement.innerHTML.length || 2048)
+    };
 
-    // 2. Ingest real measured browser latency into GriffinOps
     fetch(`${serverUrl}/api/v1/telemetry/ingest`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-GriffinOps-API-Key': apiKey
       },
-      body: JSON.stringify({
-        api_key: apiKey,
-        endpoint: cleanUrl,
-        latency_ms: loadTimeMs,
-        status_code: 200,
-        payload_bytes: 4096
-      })
-    }).catch(() => {});
+      body: JSON.stringify(payload)
+    }).catch(function() {});
   }
 
-  // Periodic heartbeat every 15s
-  setInterval(sendTelemetry, 15000);
+  // 1. Send page load telemetry
+  if (document.readyState === 'complete') {
+    setTimeout(sendTelemetry, 500);
+  } else {
+    window.addEventListener('load', function() {
+      setTimeout(sendTelemetry, 500);
+    });
+  }
+
+  // 2. Capture Uncaught JavaScript Errors
+  window.addEventListener('error', function(event) {
+    sendTelemetry({
+      status_code: 500,
+      latency_ms: 120.0
+    });
+  });
+
+  // 3. Periodic streaming heartbeat every 10 seconds
+  setInterval(function() {
+    sendTelemetry();
+  }, 10000);
+
+  // Global helper on window
+  window.GriffinOps = {
+    apiKey: apiKey,
+    sendMetric: sendTelemetry
+  };
 })();

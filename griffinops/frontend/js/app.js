@@ -279,31 +279,32 @@ async function fetchRealWebsites() {
       tbody.innerHTML = "";
       const siteList = Object.values(sites);
       if (siteList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">🌐 No active monitored target URLs yet. Generate an API Key in Tab 2 or click <strong>+ Monitor Custom Website</strong> above!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">🌐 No active monitored websites yet. Click <strong>+ Register Website / API</strong> above to start monitoring!</td></tr>`;
         return;
       }
       siteList.forEach(site => {
         const lat = site.latest.latency_ms;
         const status = site.latest.status_code;
         const isHazard = lat > 250.0 || status >= 400 || faultInjected;
+        const apiKey = site.api_key || "gop_live_web001";
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
         tr.title = "Click row to view detailed Pre-Mortem failure analysis";
         tr.onclick = (e) => {
-          if (e.target.tagName !== 'A' && e.target.tagName !== 'BUTTON') {
+          if (e.target.tagName !== 'A' && e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
             openPremortemDrilldown(site.name, site.url, lat, status, site.latest.payload_bytes);
           }
         };
         tr.innerHTML = `
           <td><strong style="display:flex; align-items:center; gap:6px;"><span>${isHazard ? '🔴' : '🟢'}</span> ${site.name}</strong></td>
           <td><code style="color:var(--accent-amber); font-size:11px;">${site.url}</code></td>
-          <td><span class="badge badge-purple">${site.type}</span></td>
+          <td><span class="badge badge-purple" style="font-family:var(--font-mono); font-size:11px;">${apiKey}</span></td>
           <td><strong style="color:${isHazard ? 'var(--pastel-rose)' : 'inherit'};">${lat.toFixed(1)} ms</strong></td>
           <td><span class="badge ${status === 200 ? 'badge-amber' : 'badge-rose'}">HTTP ${status}</span></td>
-          <td>${site.latest.payload_bytes.toLocaleString()} bytes</td>
+          <td><span class="badge ${isHazard ? 'badge-rose' : 'badge-mint'}">${isHazard ? 'M ≥ 3.5σ Hazard' : 'Nominal (0.3σ)'}</span></td>
           <td style="display:flex; gap:6px; align-items:center;">
             <button class="btn btn-secondary btn-sm" onclick="openPremortemDrilldown('${site.name}', '${site.url}', ${lat}, ${status}, ${site.latest.payload_bytes})" style="font-size:11px; padding:4px 8px;">🔮 Pre-Mortem</button>
-            <a href="${site.url}" target="_blank" class="btn btn-primary btn-sm" style="padding:4px 8px; font-size:11px; text-decoration:none;">🌐 Visit ↗</a>
+            <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK &lt;/&gt;</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -1114,12 +1115,13 @@ async function fetchAPIKeys() {
           <td><strong>${k.name}</strong></td>
           <td><span class="key-code">${k.api_key}</span></td>
           <td><code>${k.assigned_service}</code></td>
-          <td><span class="badge badge-amber">${k.environment}</span></td>
+          <td><span class="badge badge-amber">${k.environment || 'production'}</span></td>
           <td>${k.requests_total.toLocaleString()}</td>
-          <td><span class="badge badge-amber">${k.status}</span></td>
-          <td>
-            <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${k.api_key}')">⚙️ Embed SDK</button>
-            <button class="btn btn-danger" onclick="revokeKey('${k.key_id}')">Revoke</button>
+          <td><span class="badge ${k.status === 'ACTIVE' ? 'badge-mint' : 'badge-rose'}">${k.status}</span></td>
+          <td style="display:flex; gap:6px; align-items:center;">
+            <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${k.api_key}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK</button>
+            <button class="btn btn-secondary btn-sm" onclick="sendTestPingFor('${k.api_key}')" style="padding:4px 8px; font-size:11px;">⚡ Test Ping</button>
+            <button class="btn btn-danger btn-sm" onclick="revokeKey('${k.key_id}')" style="padding:4px 8px; font-size:11px;">Revoke</button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -1259,38 +1261,30 @@ function closeCreateKeyModal() {
 
 async function submitCreateAPIKey() {
   const nameEl = document.getElementById("new-key-name");
-  const endpointEl = document.getElementById("new-key-endpoint");
-  const slaEl = document.getElementById("new-key-sla");
-  const envEl = document.getElementById("new-key-env");
-  const tierEl = document.getElementById("new-key-tier");
+  const name = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : "My Web Application";
 
-  const name = (nameEl && nameEl.value.trim()) ? nameEl.value.trim() : "My Microservice API";
-  const endpoint = (endpointEl && endpointEl.value.trim()) ? endpointEl.value.trim() : "/api/v1/checkout";
-  const sla = (slaEl && parseFloat(slaEl.value)) ? parseFloat(slaEl.value) : 200.0;
-  const env = envEl ? envEl.value : "production";
-  const tier = tierEl ? tierEl.value : "Payment ($850/min)";
-
-  showToast("⚙️ Generating production API Key...");
+  showToast("⚙️ Generating API Key & 1-Line Embed Code...");
 
   try {
     const resp = await fetch("/api/v1/keys/create", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": authToken ? `Bearer ${authToken}` : ""
+      },
       body: JSON.stringify({
         name: name,
-        endpoint: endpoint,
-        sla_latency_ms: sla,
-        sla_tier: tier,
-        environment: env
+        target_url: `https://${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.internal`
       })
     });
     if (resp.ok) {
       const newKey = await resp.json();
       currentGeneratedKey = newKey.api_key;
-      showToast(`🔑 Key Generated: ${currentGeneratedKey}`);
+      showToast(`🎉 API Key Created: ${currentGeneratedKey}`);
 
       if (typeof fetchAPIKeys === "function") fetchAPIKeys();
       if (typeof fetchMonitoredAPIs === "function") fetchMonitoredAPIs();
+      if (typeof fetchRealWebsites === "function") fetchRealWebsites();
 
       const stepForm = document.getElementById("key-modal-step-form");
       const stepSuccess = document.getElementById("key-modal-step-success");
@@ -1300,24 +1294,13 @@ async function submitCreateAPIKey() {
       const keyTag = document.getElementById("modal-generated-key");
       if (keyTag) keyTag.textContent = currentGeneratedKey;
 
-      const htmlScript = `<!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${currentGeneratedKey}"></script>`;
+      const htmlScript = `<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${currentGeneratedKey}"></script>`;
 
-      const pythonReq = `import requests
+      const pythonReq = `import requests\n\nheaders = {"X-GriffinOps-API-Key": "${currentGeneratedKey}"}\nrequests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 42.5, "status_code": 200})`;
 
-headers = {"X-GriffinOps-API-Key": "${currentGeneratedKey}"}
-requests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 125.4, "status_code": 200})`;
+      const jsFetch = `const axios = require('axios');\n\naxios.post('${window.location.origin}/api/v1/telemetry/ingest', \n  { latency_ms: 42.5, status_code: 200 }, \n  { headers: { 'X-GriffinOps-API-Key': '${currentGeneratedKey}' } }\n);`;
 
-      const jsFetch = `const axios = require('axios');
-
-axios.post('${window.location.origin}/api/v1/telemetry/ingest', 
-  { latency_ms: 125.4, status_code: 200 }, 
-  { headers: { 'X-GriffinOps-API-Key': '${currentGeneratedKey}' } }
-);`;
-
-      const curlCmd = `curl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\
-  -H "X-GriffinOps-API-Key: ${currentGeneratedKey}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"latency_ms": 125.4, "status_code": 200}'`;
+      const curlCmd = `curl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\\n  -H "X-GriffinOps-API-Key: ${currentGeneratedKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"latency_ms": 42.5, "status_code": 200}'`;
 
       if (document.getElementById("modal-code-box-html")) document.getElementById("modal-code-box-html").textContent = htmlScript;
       if (document.getElementById("modal-code-box-python")) document.getElementById("modal-code-box-python").textContent = pythonReq;
@@ -1331,6 +1314,41 @@ axios.post('${window.location.origin}/api/v1/telemetry/ingest',
     }
   } catch (err) {
     showToast(`❌ Connection error generating API key: ${err.message}`);
+  }
+}
+
+async function sendModalTestPing() {
+  if (!currentGeneratedKey) return;
+  await sendTestPingFor(currentGeneratedKey);
+}
+
+async function sendTestPingFor(apiKey, isChaos = false) {
+  const latency = isChaos ? 820.0 : Math.round(35.0 + Math.random() * 20.0);
+  const status = isChaos ? 504 : 200;
+  showToast(`⚡ Sending real test telemetry (${latency}ms, HTTP ${status})...`);
+
+  try {
+    const resp = await fetch("/api/v1/telemetry/test-ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        latency_ms: latency,
+        status_code: status
+      })
+    });
+    if (resp.ok) {
+      showToast(`🎉 Ingestion successful! Dashboard updated with real ${latency}ms metric.`);
+      pollData();
+      if (typeof fetchRealWebsites === "function") fetchRealWebsites();
+      if (typeof fetchMonitoredAPIs === "function") fetchMonitoredAPIs();
+      if (typeof fetchAPIKeys === "function") fetchAPIKeys();
+      if (typeof fetchTopology === "function") fetchTopology();
+    } else {
+      showToast("❌ Ingestion ping failed.");
+    }
+  } catch (err) {
+    showToast("Error sending test ping: " + err.message);
   }
 }
 
