@@ -8,9 +8,9 @@
 (function() {
   const currentScript = document.currentScript || Array.from(document.querySelectorAll('script')).pop();
   const apiKey = (currentScript && currentScript.getAttribute('data-api-key')) || 'gop_live_default';
-  const serverUrl = (currentScript && currentScript.src) ? new URL(currentScript.src).origin : window.location.origin;
+  const serverUrl = (currentScript && currentScript.getAttribute('data-server')) || ((currentScript && currentScript.src) ? new URL(currentScript.src).origin : window.location.origin);
 
-  console.log(`[GriffinOps SDK] Initialized for API Key: ${apiKey}`);
+  console.log(`[GriffinOps SDK] Initialized for API Key: ${apiKey} (Server: ${serverUrl})`);
 
   function sendTelemetry(opts) {
     opts = opts || {};

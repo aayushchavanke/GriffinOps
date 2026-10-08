@@ -29,6 +29,9 @@ class DualNotifier:
         resend_api_key: Optional[str] = None
     ):
         self.slack_webhook_url = slack_webhook_url or os.getenv("SLACK_WEBHOOK_URL")
+        self.slack_last_state: str = "HEALTHY"
+        self.slack_last_alert_time: float = 0.0
+        self.slack_cooldown_seconds: float = 60.0
         self.smtp_host = smtp_host or os.getenv("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", str(smtp_port)))
         self.smtp_user = smtp_user or os.getenv("SMTP_USER", "alerts@griffinops.io")
@@ -42,8 +45,11 @@ class DualNotifier:
     def send_slack_alert(self, audit_report: dict) -> dict:
         rca = audit_report.get("root_cause_analysis", {})
         commit = audit_report.get("ci_cd_correlation", {})
+        service_name = rca.get("service") or audit_report.get("target_service", "Unknown Microservice")
+        fail_prob_pct = audit_report.get("failure_probability_pct", "N/A")
         
         payload = {
+            "text": f"🚨 GriffinOps Alert: High Crash Risk on {service_name} ({fail_prob_pct})",
             "blocks": [
                 {
                     "type": "header",
@@ -54,6 +60,13 @@ class DualNotifier:
                     "fields": [
                         {"type": "mrkdwn", "text": f"*System Status:*\n`{audit_report.get('system_status')}`"},
                         {"type": "mrkdwn", "text": f"*Forecasted TTF:*\n*{audit_report.get('forecasted_time_to_failure_human')}*"}
+                    ]
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {"type": "mrkdwn", "text": f"*Affected Service:*\n`{service_name}`"},
+                        {"type": "mrkdwn", "text": f"*Failure Probability:*\n*{fail_prob_pct}*"}
                     ]
                 },
                 {
@@ -72,15 +85,104 @@ class DualNotifier:
         
         if self.slack_webhook_url:
             try:
-                resp = requests.post(self.slack_webhook_url, json=payload, timeout=3.0)
+                resp = requests.post(self.slack_webhook_url, json=payload, timeout=4.0)
                 return {"status": "SUCCESS", "slack_response_code": resp.status_code}
             except Exception as e:
                 return {"status": "ERROR", "message": str(e), "payload": payload}
         
         return {"status": "SIMULATED", "payload": payload}
 
+    def send_slack_test_alert(self, target_url: Optional[str] = None) -> dict:
+        url = (target_url or self.slack_webhook_url or "").strip()
+        if not url:
+            return {"status": "ERROR", "message": "No Slack Webhook URL provided or configured."}
+        
+        payload = {
+            "text": "🚨 GriffinOps Test Alert: Slack Webhook Connected Successfully!",
+            "blocks": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": "🔔 GriffinOps Slack Webhook Verification", "emoji": True}
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "Your Slack webhook is successfully configured with *GriffinOps AI SRE Copilot*. Autonomous pre-mortem alerts will appear here when microservice anomalies or threshold breaches are forecasted."
+                    }
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {"type": "mrkdwn", "text": "*Service (Sample):*\n`checkout-service`"},
+                        {"type": "mrkdwn", "text": "*Failure Probability:*\n*86.4% (CRITICAL)*"},
+                        {"type": "mrkdwn", "text": "*Forecasted TTF:*\n*T-2m 30s (150s)*"},
+                        {"type": "mrkdwn", "text": "*Test Status:*\n`VERIFIED`"}
+                    ]
+                }
+            ]
+        }
+        try:
+            resp = requests.post(url, json=payload, timeout=4.0)
+            if resp.status_code == 200:
+                return {"status": "SUCCESS", "message": "Test alert delivered to Slack!", "code": resp.status_code}
+            return {"status": "ERROR", "message": f"Slack rejected webhook with HTTP {resp.status_code}: {resp.text}", "code": resp.status_code}
+        except Exception as e:
+            return {"status": "ERROR", "message": f"Failed to reach Slack webhook: {str(e)}"}
+
+    def dispatch_slack_if_anomaly(self, tcn_results: dict, audit_report: Optional[dict] = None) -> Optional[dict]:
+        if not self.slack_webhook_url:
+            return None
+            
+        sys_anomaly = bool(tcn_results.get("system_anomaly_detected", False))
+        max_prob = float(tcn_results.get("max_failure_prob", 0.0))
+        is_at_risk = sys_anomaly or (max_prob >= 0.5)
+        
+        if not is_at_risk:
+            self.slack_last_state = "HEALTHY"
+            return None
+            
+        now = time.time()
+        state_transition = (self.slack_last_state == "HEALTHY")
+        cooldown_elapsed = (now - self.slack_last_alert_time >= self.slack_cooldown_seconds)
+        
+        if not (state_transition or cooldown_elapsed):
+            return None  # Suppress duplicate alert during cooldown
+            
+        self.slack_last_state = "AT_RISK"
+        self.slack_last_alert_time = now
+        
+        highest_svc = tcn_results.get("highest_risk_service") or "system"
+        svc_data = tcn_results.get("services", {}).get(highest_svc, {})
+        prob = svc_data.get("failure_probability", max_prob)
+        ttf_sec = svc_data.get("predicted_time_to_failure_sec", 0)
+        
+        if ttf_sec > 0:
+            mins = ttf_sec // 60
+            secs = ttf_sec % 60
+            ttf_human = f"T-{f'{mins}m ' if mins > 0 else ''}{secs}s"
+        else:
+            ttf_human = "Imminent (< 30s)"
+            
+        report_payload = {
+            "report_id": audit_report.get("report_id") if audit_report else f"GO-ALERT-{int(now) % 100000}",
+            "system_status": "SEV-1 CRITICAL HAZARD" if max_prob >= 0.7 else "SEV-2 WARNING",
+            "forecasted_time_to_failure_human": ttf_human,
+            "target_service": highest_svc,
+            "failure_probability_pct": f"{round(prob * 100, 1)}%",
+            "root_cause_analysis": {
+                "service": highest_svc,
+                "primary_metric": svc_data.get("breached_signals", [{}])[0].get("signal", "forecast_anomaly") if svc_data.get("breached_signals") else "latency_ms",
+                "max_z_score_deviation": svc_data.get("max_z_score", 3.0)
+            },
+            "suggested_action": audit_report.get("suggested_action") if audit_report else f"Scale replicas for {highest_svc} and inspect container resource allocation."
+        }
+        
+        return self.send_slack_alert(report_payload)
+
     def update_credentials(
         self,
+        slack_webhook_url: Optional[str] = None,
         smtp_host: Optional[str] = None,
         smtp_port: int = 587,
         smtp_user: Optional[str] = None,
@@ -88,6 +190,7 @@ class DualNotifier:
         brevo_api_key: Optional[str] = None,
         resend_api_key: Optional[str] = None
     ):
+        if slack_webhook_url is not None: self.slack_webhook_url = slack_webhook_url.strip() or None
         if smtp_host is not None: self.smtp_host = smtp_host
         if smtp_port is not None: self.smtp_port = int(smtp_port)
         if smtp_user is not None: self.smtp_user = smtp_user
@@ -97,6 +200,8 @@ class DualNotifier:
 
     def get_config_status(self) -> dict:
         return {
+            "has_slack": bool(self.slack_webhook_url),
+            "slack_webhook_url": self.slack_webhook_url or "",
             "has_brevo": bool(self.brevo_api_key),
             "has_resend": bool(self.resend_api_key),
             "has_smtp": bool(self.smtp_host and self.smtp_user and self.smtp_pass),

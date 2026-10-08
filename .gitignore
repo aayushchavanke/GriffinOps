@@ -13,3 +13,6 @@ docs_output/*
 !docs_output/.gitkeep
 .vscode/
 .idea/
+
+venv/
+griffinops/data/

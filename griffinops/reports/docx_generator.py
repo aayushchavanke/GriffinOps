@@ -271,7 +271,7 @@ class DOCXReportGenerator:
         h_abs = doc.add_heading("Abstract & Core Product Vision", level=1)
         h_abs.runs[0].font.color.rgb = RGBColor(245, 158, 11)
         p_abs = doc.add_paragraph(
-            "System downtime in modern cloud-native architectures costs enterprise organizations an estimated $5,600 per minute. "
+            "System downtime in modern cloud-native architectures costs enterprise organizations an estimated ₹5,600 per minute. "
             "Traditional observability platforms (Datadog, Prometheus, Dynatrace) operate reactively by triggering alerts only after metric thresholds are breached "
             "or user requests fail. GriffinOps introduces an autonomous, predictive AIOps platform that shifts observability from post-mortem diagnosis to predictive pre-mortems. "
             "Users register their real hosted website target URLs or generate multi-format API keys (HTML script tags, JS fetch, Python requests, or cURL headers) "
@@ -395,6 +395,190 @@ class DOCXReportGenerator:
             "   • Multi-Region Telemetry Aggregators: Extending ingestion nodes across AWS/GCP regions for distributed latency tracing."
         )
         p_c5.paragraph_format.space_after = Pt(14)
+
+        doc.save(filepath)
+        return filepath
+
+    def generate_docx_audit_report(self, audit_report: dict) -> str:
+        """
+        Generates a styled Microsoft Word (.docx) Pre-Mortem Audit Report from a live
+        CausalRCAEngine audit_report dict.  Entirely separate from the master project doc.
+        Returns the absolute filepath of the generated .docx file.
+        """
+        import docx
+        from docx.shared import Inches, Pt, RGBColor
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        report_id = audit_report.get("report_id", "GO-RPT-LIVE")
+        filename  = f"GriffinOps_Audit_Report_{report_id}.docx"
+        filepath  = os.path.join(self.output_dir, filename)
+
+        rca    = audit_report.get("root_cause_analysis", {})
+        commit = audit_report.get("ci_cd_correlation", {})
+        impact = audit_report.get("business_impact", {})
+        blast  = audit_report.get("blast_radius", {})
+
+        doc = docx.Document()
+        for section in doc.sections:
+            section.top_margin    = Inches(0.9)
+            section.bottom_margin = Inches(0.9)
+            section.left_margin   = Inches(1.0)
+            section.right_margin  = Inches(1.0)
+
+        # ── Title block ───────────────────────────────────────────────────
+        title_p = doc.add_paragraph()
+        title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = title_p.add_run("GriffinOps — Pre-Mortem Audit Report")
+        r.font.name  = "Calibri"
+        r.font.size  = Pt(20)
+        r.font.bold  = True
+        r.font.color.rgb = RGBColor(225, 29, 72)
+
+        sub_p = doc.add_paragraph()
+        sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        rs = sub_p.add_run(
+            f"Document ID: {report_id}  \u2022  "
+            f"Generated: {audit_report.get('generated_at', 'N/A')}  \u2022  "
+            f"Status: {audit_report.get('system_status', 'UNKNOWN')}"
+        )
+        rs.font.name   = "Calibri"
+        rs.font.size   = Pt(10)
+        rs.font.italic = True
+        rs.font.color.rgb = RGBColor(100, 116, 139)
+
+        doc.add_paragraph()  # spacer
+
+        # ── Section 1: Severity & TTF ──────────────────────────────────────
+        h1 = doc.add_heading("1. Severity & Time-to-Failure", level=1)
+        h1.runs[0].font.color.rgb = RGBColor(0, 186, 212)
+
+        tbl1 = doc.add_table(rows=3, cols=2)
+        tbl1.style = "Table Grid"
+        rows1 = [
+            ("Severity Level",             audit_report.get("severity_level", "—")),
+            ("Forecasted Time-to-Failure",  audit_report.get("forecasted_time_to_failure_human", "HEALTHY")),
+            ("Forecasted TTF (seconds)",    str(audit_report.get("forecasted_time_to_failure_sec", 0))),
+        ]
+        for i, (label, value) in enumerate(rows1):
+            tbl1.cell(i, 0).text = label
+            tbl1.cell(i, 1).text = str(value)
+            tbl1.cell(i, 0).paragraphs[0].runs[0].font.bold = True
+
+        doc.add_paragraph()
+
+        # ── Section 2: Root Cause Analysis ────────────────────────────────
+        h2 = doc.add_heading("2. Root Cause Analysis (PyTorch TCN + RCAEval)", level=1)
+        h2.runs[0].font.color.rgb = RGBColor(0, 186, 212)
+
+        tbl2 = doc.add_table(rows=6, cols=2)
+        tbl2.style = "Table Grid"
+        failure_prob = audit_report.get("max_failure_prob") or rca.get("causal_confidence_score", 0)
+        rows2 = [
+            ("Affected Service",      rca.get("service", "—")),
+            ("API Endpoint",          rca.get("api_endpoint", "—")),
+            ("Primary Metric Breach", f"{rca.get('primary_metric', '—')} (+{rca.get('max_z_score_deviation', '—')} \u03c3)"),
+            ("Failure Probability",   f"{round(float(failure_prob or 0) * 100, 1)}%"),
+            ("Causal Confidence",     f"{int(float(rca.get('causal_confidence_score', 0)) * 100)}%"),
+            ("Algorithm Used",        rca.get("algorithm_used", "—")),
+        ]
+        for i, (label, value) in enumerate(rows2):
+            tbl2.cell(i, 0).text = label
+            tbl2.cell(i, 1).text = str(value)
+            tbl2.cell(i, 0).paragraphs[0].runs[0].font.bold = True
+
+        doc.add_paragraph()
+
+        # ── Section 3: Blast Radius ────────────────────────────────────────
+        h3 = doc.add_heading("3. Blast Radius & Impacted Services", level=1)
+        h3.runs[0].font.color.rgb = RGBColor(0, 186, 212)
+
+        impacted = blast.get("impacted_services", [])
+        bp = doc.add_paragraph()
+        bp.add_run("Affected Microservice Count: ").font.bold = True
+        bp.add_run(str(blast.get("affected_microservices_count", len(impacted))))
+        if impacted:
+            for svc in impacted:
+                doc.add_paragraph(str(svc), style="List Bullet")
+
+        doc.add_paragraph()
+
+        # ── Section 4: Business Impact ─────────────────────────────────────
+        h4 = doc.add_heading("4. Estimated Business & Financial Impact", level=1)
+        h4.runs[0].font.color.rgb = RGBColor(0, 186, 212)
+
+        tbl4 = doc.add_table(rows=3, cols=2)
+        tbl4.style = "Table Grid"
+        rows4 = [
+            ("Financial Risk Rate",      impact.get("estimated_loss_per_minute", "—")),
+            ("Impacted Active Sessions", impact.get("affected_active_user_sessions", "—")),
+            ("Business Risk Level",      impact.get("business_risk_level", "—")),
+        ]
+        for i, (label, value) in enumerate(rows4):
+            tbl4.cell(i, 0).text = label
+            tbl4.cell(i, 1).text = str(value)
+            tbl4.cell(i, 0).paragraphs[0].runs[0].font.bold = True
+
+        if impact.get("summary"):
+            sp = doc.add_paragraph()
+            sp.add_run("Impact Summary: ").font.bold = True
+            sp.add_run(impact["summary"])
+
+        doc.add_paragraph()
+
+        # ── Section 5: CI/CD Commit Correlation ───────────────────────────
+        h5 = doc.add_heading("5. CI/CD Deployment Correlation", level=1)
+        h5.runs[0].font.color.rgb = RGBColor(0, 186, 212)
+
+        if commit.get("source") == "not_connected" or not commit.get("commit_id"):
+            nc_p = doc.add_paragraph()
+            nc_r = nc_p.add_run(
+                "No CI/CD integration configured. Connect a Git webhook or deployment "
+                "pipeline to enable real commit correlation."
+            )
+            nc_r.italic = True
+        else:
+            tbl5 = doc.add_table(rows=4, cols=2)
+            tbl5.style = "Table Grid"
+            rows5 = [
+                ("Commit ID",     commit.get("commit_id", "—")),
+                ("Author",        commit.get("author", "—")),
+                ("Message",       commit.get("message", "—")),
+                ("Changed Files", ", ".join(commit.get("changed_files", []))),
+            ]
+            for i, (label, value) in enumerate(rows5):
+                tbl5.cell(i, 0).text = label
+                tbl5.cell(i, 1).text = str(value)
+                tbl5.cell(i, 0).paragraphs[0].runs[0].font.bold = True
+
+        doc.add_paragraph()
+
+        # ── Section 6: Suggested Remediation ──────────────────────────────
+        h6 = doc.add_heading("6. Recommended SRE Remediation Action", level=1)
+        h6.runs[0].font.color.rgb = RGBColor(0, 186, 212)
+
+        action_p = doc.add_paragraph()
+        action_p.add_run(audit_report.get("suggested_action", "No action required."))
+
+        cmd = audit_report.get("remediation_command")
+        if cmd:
+            doc.add_paragraph()
+            cmd_p = doc.add_paragraph()
+            cmd_r = cmd_p.add_run(f"$ {cmd}")
+            cmd_r.font.name  = "Courier New"
+            cmd_r.font.size  = Pt(9)
+            cmd_r.font.color.rgb = RGBColor(0, 0, 0)
+
+        # ── Footer ─────────────────────────────────────────────────────────
+        doc.add_paragraph()
+        footer_p = doc.add_paragraph()
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        fr = footer_p.add_run(
+            "GriffinOps Autonomous AI SRE Copilot  \u2014  "
+            "SIES GST AI & Data Science  \u2014  Confidential"
+        )
+        fr.font.size   = Pt(8)
+        fr.font.italic = True
+        fr.font.color.rgb = RGBColor(148, 163, 184)
 
         doc.save(filepath)
         return filepath

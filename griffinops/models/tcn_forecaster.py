@@ -1,10 +1,14 @@
 import os
+import logging
 import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from typing import Dict, List, Tuple, Optional
+
+logger = logging.getLogger(__name__)
+
 
 class DilatedCausalConv1dBlock(nn.Module):
     """
@@ -156,11 +160,27 @@ class TCNPredictorEngine:
     def __init__(self, model_path: Optional[str] = None):
         self.model = PyTorchTCNForecaster(num_features=5, hidden_channels=32, num_layers=3, forecast_horizon=10)
         self.model.eval()
-        if model_path and os.path.exists(model_path):
-            try:
-                self.model.load_state_dict(torch.load(model_path))
-            except Exception:
-                pass
+        
+        resolved_path = model_path or os.getenv("GRIFFINOPS_TCN_CHECKPOINT")
+        if resolved_path:
+            if os.path.exists(resolved_path):
+                try:
+                    self.model.load_state_dict(torch.load(resolved_path, map_location=torch.device('cpu')))
+                    logger.info("Successfully loaded trained TCN model weights from %s", resolved_path)
+                except Exception as e:
+                    logger.warning(
+                        "Failed to load TCN model checkpoint from %s: %s. Model is running on UNTRAINED random weights!",
+                        resolved_path, e
+                    )
+            else:
+                logger.warning(
+                    "TCN model checkpoint not found at %s. Model is running on UNTRAINED random weights!",
+                    resolved_path
+                )
+        else:
+            logger.warning(
+                "TCNPredictorEngine initialized without model_path (no checkpoint found). Model is running on UNTRAINED random weights!"
+            )
 
     def predict(self, input_tensor: torch.Tensor, service_names: Optional[List[str]] = None, z_threshold: float = 2.5) -> dict:
         """
@@ -212,10 +232,15 @@ class TCNPredictorEngine:
                 max_prob = prob
                 risk_svc = svc
 
-            # Calculate time to failure (each step represents 30s)
+            # Calculate time to failure based on the earliest forecast step crossing z_threshold
+            # svc_forecast has shape [num_features, forecast_horizon] where each step represents 30s
             time_to_failure_sec = 0
-            if breached_signals or prob > 0.4:
-                time_to_failure_sec = int(random.randint(180, 300))
+            num_steps = svc_forecast.shape[1] if svc_forecast.ndim > 1 else 0
+            for step_idx in range(num_steps):
+                if np.any(svc_forecast[:, step_idx] >= z_threshold):
+                    # Step index 0 represents +30s into the future
+                    time_to_failure_sec = int((step_idx + 1) * 30)
+                    break
 
             results["services"][svc] = {
                 "forecast_z_scores": svc_forecast.tolist(),

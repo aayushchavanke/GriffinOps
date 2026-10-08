@@ -1,6 +1,8 @@
+import os
 import time
 import uuid
 from typing import Dict, List, Optional
+from griffinops.db.storage import storage
 
 # In-memory API Keys Registry: api_key -> key_info (Starts completely clean)
 API_KEYS_DB: Dict[str, dict] = {}
@@ -14,6 +16,9 @@ class APIKeyManager:
     """
     def __init__(self):
         self.keys = API_KEYS_DB
+        persisted = storage.load_api_keys()
+        if persisted:
+            self.keys.update(persisted)
 
     def generate_api_key(
         self,
@@ -27,11 +32,12 @@ class APIKeyManager:
         key_id = f"key_{uuid.uuid4().hex[:8]}"
         service_slug = name.lower().replace(" ", "-").replace("&", "and").replace("/", "-")
         clean_url = target_url or f"https://{service_slug}.internal"
+        base_url = os.getenv("GRIFFINOPS_PUBLIC_URL", "http://localhost:8000").rstrip("/")
 
-        html_snippet = f'<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="http://localhost:8000/static/js/griffinops-sdk.js" data-api-key="{raw_key}"></script>'
-        python_snippet = f'import requests\n\nheaders = {{"X-GriffinOps-API-Key": "{raw_key}"}}\nrequests.post("http://localhost:8000/api/v1/telemetry/ingest", headers=headers, json={{"latency_ms": 42.5, "status_code": 200}})'
-        nodejs_snippet = f"const axios = require('axios');\n\naxios.post('http://localhost:8000/api/v1/telemetry/ingest', \n  {{ latency_ms: 42.5, status_code: 200 }}, \n  {{ headers: {{ 'X-GriffinOps-API-Key': '{raw_key}' }} }}\n);"
-        curl_snippet = f'curl -X POST "http://localhost:8000/api/v1/telemetry/ingest" \\\n  -H "X-GriffinOps-API-Key: {raw_key}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{{"latency_ms": 42.5, "status_code": 200}}\''
+        html_snippet = f'<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="{base_url}/static/js/griffinops-sdk.js" data-api-key="{raw_key}"></script>'
+        python_snippet = f'import requests\n\nheaders = {{"X-GriffinOps-API-Key": "{raw_key}"}}\nrequests.post("{base_url}/api/v1/telemetry/ingest", headers=headers, json={{"latency_ms": 42.5, "status_code": 200}})'
+        nodejs_snippet = f"const axios = require('axios');\n\naxios.post('{base_url}/api/v1/telemetry/ingest', \n  {{ latency_ms: 42.5, status_code: 200 }}, \n  {{ headers: {{ 'X-GriffinOps-API-Key': '{raw_key}' }} }}\n);"
+        curl_snippet = f'curl -X POST "{base_url}/api/v1/telemetry/ingest" \\\n  -H "X-GriffinOps-API-Key: {raw_key}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{{"latency_ms": 42.5, "status_code": 200}}\''
 
         record = {
             "key_id": key_id,
@@ -53,6 +59,7 @@ class APIKeyManager:
             }
         }
         self.keys[raw_key] = record
+        storage.save_api_key(record)
         return record
 
     def list_api_keys(self, owner_email: Optional[str] = None) -> List[dict]:
@@ -66,6 +73,7 @@ class APIKeyManager:
         for k, info in list(self.keys.items()):
             if info["key_id"] == key_id:
                 info["status"] = "REVOKED"
+                storage.update_api_key_status(key_id, "REVOKED")
                 return True
         return False
 
@@ -73,6 +81,7 @@ class APIKeyManager:
         info = self.keys.get(api_key)
         if info and info["status"] == "ACTIVE":
             info["requests_total"] += 1
+            storage.mark_api_key_dirty(api_key, info["requests_total"], info.get("latest_latency_ms"))
             return info
         return None
 

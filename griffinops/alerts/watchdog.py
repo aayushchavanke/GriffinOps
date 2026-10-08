@@ -1,6 +1,7 @@
 import time
 import threading
 from typing import Optional, List
+from griffinops.db.storage import storage
 
 class BackgroundAlertWatchdog:
     """
@@ -21,7 +22,7 @@ class BackgroundAlertWatchdog:
         self._thread: Optional[threading.Thread] = None
         self.last_alert_time: float = 0.0
         self.cooldown_seconds: float = 20.0
-        self.dispatch_log: List[dict] = []
+        self.dispatch_log: List[dict] = storage.load_dispatch_logs(limit=20)
         self.registered_developer_emails = ["sre-lead@company.com"]
 
     def start(self):
@@ -33,6 +34,8 @@ class BackgroundAlertWatchdog:
 
     def stop(self):
         self.is_running = False
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
 
     def _watchdog_loop(self):
         while self.is_running:
@@ -69,6 +72,21 @@ class BackgroundAlertWatchdog:
             now = time.time()
             if now - self.last_alert_time >= self.cooldown_seconds or force_trigger:
                 report = self.rca_engine.analyze_root_cause(tcn_results, z_scores, active_fault=active_fault)
+                
+                # Dispatch Slack alert if webhook configured
+                slack_res = self.notifier.dispatch_slack_if_anomaly(tcn_results, audit_report=report)
+                if slack_res:
+                    slack_entry = {
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(now)),
+                        "report_id": report.get("report_id"),
+                        "target_service": report.get("root_cause_analysis", {}).get("service"),
+                        "recipient": "Slack Webhook",
+                        "status": slack_res.get("status"),
+                        "preview_path": None
+                    }
+                    self.dispatch_log.insert(0, slack_entry)
+                    storage.save_dispatch_log(slack_entry)
+
                 for email in self.registered_developer_emails:
                     email_res = self.notifier.send_email_notification(report, recipient_email=email)
                     log_entry = {
@@ -80,6 +98,7 @@ class BackgroundAlertWatchdog:
                         "preview_path": email_res.get("preview_path")
                     }
                     self.dispatch_log.insert(0, log_entry)
+                    storage.save_dispatch_log(log_entry)
                 
                 self.last_alert_time = now
                 return report

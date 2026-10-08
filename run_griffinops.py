@@ -21,15 +21,18 @@ def main():
     if current_dir not in sys.path:
         sys.path.insert(0, current_dir)
         
-    print("\n[+] Starting GriffinOps FastAPI Intelligence API & SRE Dashboard...")
-    print("[+] Dashboard Web App: http://localhost:8000")
-    print("[+] OpenAPI Swagger Docs: http://localhost:8000/docs")
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 8000))
+
+    print(f"\n[+] Starting GriffinOps FastAPI Intelligence API & SRE Dashboard on {host}:{port}...")
+    print(f"[+] Dashboard Web App: http://{host if host != '0.0.0.0' else 'localhost'}:{port}")
+    print(f"[+] OpenAPI Swagger Docs: http://{host if host != '0.0.0.0' else 'localhost'}:{port}/docs")
     print("[+] Press Ctrl+C to stop the server.\n")
 
     uvicorn.run(
         "griffinops.api.main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=host,
+        port=port,
         reload=False,
         log_level="info"
     )

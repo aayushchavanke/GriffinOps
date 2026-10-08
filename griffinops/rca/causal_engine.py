@@ -55,7 +55,7 @@ class CausalRCAEngine:
                 "forecasted_time_to_failure_sec": 0,
                 "forecasted_time_to_failure_human": "HEALTHY",
                 "business_impact": {
-                    "estimated_loss_per_minute": "$0/min",
+                    "estimated_loss_per_minute": "₹0/min",
                     "affected_active_user_sessions": "0 active users",
                     "business_risk_level": "ZERO RISK",
                     "summary": "System baseline normal. Zero active outage hazards."
@@ -94,8 +94,10 @@ class CausalRCAEngine:
 
         tcn_svc_info = tcn_results.get("services", {}).get(root_cause_service, {})
         predicted_ttf = tcn_svc_info.get("predicted_time_to_failure_sec", 240)
+        ttf_is_fallback = False
         if predicted_ttf == 0:
             predicted_ttf = 240
+            ttf_is_fallback = True
 
         confidence = min(0.98, max(0.75, round(top_score / 8.0, 2)))
         
@@ -139,7 +141,7 @@ class CausalRCAEngine:
             else:
                 bus_risk = "MODERATE SERVICE DEGRADATION"
             
-            bus_summary = f"{sev_level}: Dynamic estimated ${loss_per_min:,}/min risk across {impacted_users:,} active sessions."
+            bus_summary = f"{sev_level}: Dynamic estimated ₹{loss_per_min:,}/min risk across {impacted_users:,} active sessions."
 
         # Phase 2 Non-Linear PC Causal Discovery (causal-learn)
         pc_findings = {"status": "SKIPPED", "edges": [], "root_causes": []}
@@ -205,8 +207,9 @@ class CausalRCAEngine:
             "severity_level": sev_level,
             "forecasted_time_to_failure_sec": predicted_ttf if is_hazard else 0,
             "forecasted_time_to_failure_human": f"{predicted_ttf // 60}m {predicted_ttf % 60:02d}s" if is_hazard else "HEALTHY",
+            "ttf_is_fallback": ttf_is_fallback,
             "business_impact": {
-                "estimated_loss_per_minute": f"${loss_per_min}/min",
+                "estimated_loss_per_minute": f"₹{loss_per_min}/min",
                 "affected_active_user_sessions": f"{impacted_users:,} active users",
                 "business_risk_level": bus_risk,
                 "summary": bus_summary
@@ -322,18 +325,20 @@ class CausalRCAEngine:
                 "code_diff": code_diff,
                 "correlated_commit": commit_info,
                 "recommended_fix": f"{diagnosis_type}: {root_cause_desc}",
-                "remediation_command": remediation_cmd
+                "remediation_command": remediation_cmd,
+                "disclaimer": "Pattern-matched from common latency/error remediation playbooks using real measured values \u2014 not a live static analysis of your source code."
             }
         }
 
     def _correlate_commit(self, service: str) -> dict:
         return {
+            "source": "not_connected",
             "service": service,
             "api_endpoint": f"/api/{service}",
-            "commit_id": "c7a109e",
-            "author": "production-deploy@griffinops.io",
-            "message": f"deploy({service}): Ingress gateway routing and timeout configuration",
-            "timestamp_offset_sec": 180,
-            "changed_files": [f"services/{service}/config.py", "k8s/deployment.yaml"],
+            "commit_id": None,
+            "author": None,
+            "message": None,
+            "timestamp_offset_sec": None,
+            "changed_files": [],
             "suggested_action": f"Inspect resource limits and socket timeouts for {service}."
         }

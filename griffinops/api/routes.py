@@ -9,6 +9,7 @@ import pandas as pd
 from griffinops.auth.supabase_auth import SupabaseAuthEngine
 from griffinops.telemetry.real_website_monitor import RealWebsiteMonitor
 from griffinops.reports.docx_generator import DOCXReportGenerator
+from griffinops.db.storage import storage
 
 router = APIRouter(prefix="/api/v1", tags=["GriffinOps Enterprise API"])
 
@@ -41,6 +42,7 @@ class ProfileUpdateRequest(BaseModel):
     organization: str
     developer_emails: List[str]
     email_alerts_enabled: bool
+    slack_webhook_url: Optional[str] = None
 
 class CreateAPIKeyRequest(BaseModel):
     name: str
@@ -51,11 +53,15 @@ class CreateAPIKeyRequest(BaseModel):
     environment: Optional[str] = "production"
 
 class IngestTelemetryRequest(BaseModel):
-    api_key: str
+    api_key: Optional[str] = None
     latency_ms: float
     status_code: int = 200
     payload_bytes: int = 256
     endpoint: Optional[str] = None
+    # Real system metrics captured via psutil on the sender's machine.
+    # Optional — JS SDK and cURL clients omit these; backend falls back to formula/constant.
+    cpu_percent: Optional[float] = None
+    memory_percent: Optional[float] = None
 
 class TestPingRequest(BaseModel):
     api_key: str
@@ -74,10 +80,46 @@ class FaultInjectRequest(BaseModel):
 class EmailAlertRequest(BaseModel):
     recipient_email: str
 
+class SlackTestRequest(BaseModel):
+    slack_webhook_url: Optional[str] = None
+
+class ReportDownloadRequest(BaseModel):
+    format: str = "pdf"          # "pdf" or "docx"
+    report_id: Optional[str] = None
+    api_endpoint: Optional[str] = None
+
+def _filter_sites_for_endpoint(api_endpoint: Optional[str]) -> Optional[list]:
+    """Returns filtered sites list or None (meaning no filter)."""
+    if not api_endpoint:
+        return None
+    if not real_website_monitor or not real_website_monitor.sites:
+        return []
+    target = api_endpoint.strip()
+    target_clean = target.rstrip("/")
+    matches = []
+    for site in real_website_monitor.sites:
+        name = site.get("name", "")
+        slug = name.lower().replace(" ", "-").replace("&", "and").replace("/", "-")
+        url = site.get("url", "")
+        url_clean = url.rstrip("/")
+        if (url == target
+                or url_clean == target_clean
+                or name.lower() == target.lower()
+                or slug == target.lower()):
+            matches.append(site)
+    return matches
+
 # --- REAL LIVE WEBSITE MONITORING ROUTES ---
 @router.get("/real-monitor/live")
-def get_real_website_telemetry():
-    return real_website_monitor.get_live_site_metrics()
+def get_real_website_telemetry(api_endpoint: Optional[str] = None):
+    all_metrics = real_website_monitor.get_live_site_metrics()
+    if not api_endpoint:
+        return all_metrics
+    filtered_sites = _filter_sites_for_endpoint(api_endpoint)
+    if filtered_sites is None:
+        return all_metrics
+    allowed_urls = {s["url"] for s in filtered_sites}
+    return {url: data for url, data in all_metrics.items() if url in allowed_urls}
 
 @router.post("/real-monitor/add-site")
 def add_real_website(req: AddRealSiteRequest):
@@ -142,8 +184,16 @@ USER_PROFILE_STATE = {
     "organization": "SIES GST AI & Data Science Team",
     "email_alerts_enabled": True,
     "developer_emails": ["sre-lead@company.com"],
-    "assigned_services_count": 0
+    "assigned_services_count": 0,
+    "slack_webhook_url": os.getenv("SLACK_WEBHOOK_URL", "")
 }
+
+# Hydrate profile state from persistent SQLite on startup
+_persisted_profile = storage.load_profile()
+if _persisted_profile:
+    for k in ["name", "email", "role", "organization", "email_alerts_enabled", "developer_emails", "slack_webhook_url"]:
+        if k in _persisted_profile and _persisted_profile[k] is not None:
+            USER_PROFILE_STATE[k] = _persisted_profile[k]
 
 @router.get("/user/profile")
 def get_user_profile():
@@ -159,6 +209,7 @@ def get_user_profile():
         "email_alerts_enabled": USER_PROFILE_STATE["email_alerts_enabled"],
         "developer_emails": dev_emails,
         "assigned_services_count": len(api_key_manager.keys) if api_key_manager else 0,
+        "slack_webhook_url": notifier.slack_webhook_url if notifier else USER_PROFILE_STATE.get("slack_webhook_url", ""),
         "email_config": email_status
     }
 
@@ -176,12 +227,18 @@ def update_user_profile(req: ProfileUpdateRequest):
     USER_PROFILE_STATE["organization"] = req.organization
     USER_PROFILE_STATE["developer_emails"] = req.developer_emails
     USER_PROFILE_STATE["email_alerts_enabled"] = req.email_alerts_enabled
+    if req.slack_webhook_url is not None:
+        clean_url = req.slack_webhook_url.strip()
+        USER_PROFILE_STATE["slack_webhook_url"] = clean_url
+        if notifier:
+            notifier.slack_webhook_url = clean_url or None
     if req.developer_emails:
         USER_PROFILE_STATE["email"] = req.developer_emails[0]
     elif req.email:
         USER_PROFILE_STATE["email"] = req.email
     if watchdog:
         watchdog.registered_developer_emails = req.developer_emails
+    storage.save_profile(USER_PROFILE_STATE)
     return {"status": "SUCCESS", "message": "User recipient email & notification settings updated.", "profile": USER_PROFILE_STATE}
 
 @router.get("/user/email-config")
@@ -201,6 +258,7 @@ def update_email_config(req: EmailConfigRequest):
             brevo_api_key=req.brevo_api_key,
             resend_api_key=req.resend_api_key
         )
+        storage.save_profile(USER_PROFILE_STATE, email_config=req.dict())
     return {
         "status": "SUCCESS",
         "message": "Email server credentials updated!",
@@ -233,11 +291,21 @@ def create_api_key(req: CreateAPIKeyRequest, authorization: Optional[str] = Head
     return new_key
 
 @router.post("/telemetry/ingest")
-def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
-    info = api_key_manager.validate_api_key(req.api_key)
+def ingest_telemetry_sdk_ping(
+    req: IngestTelemetryRequest,
+    x_griffinops_api_key: Optional[str] = Header(None, alias="X-GriffinOps-API-Key")
+):
+    effective_api_key = x_griffinops_api_key or req.api_key
+    if not effective_api_key:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing API key. Please provide the 'X-GriffinOps-API-Key' header."
+        )
+
+    info = api_key_manager.validate_api_key(effective_api_key)
     if not info:
         # If key exists in real_website_monitor, accept it
-        matching_site = next((s for s in real_website_monitor.sites if s.get("api_key") == req.api_key), None)
+        matching_site = next((s for s in real_website_monitor.sites if s.get("api_key") == effective_api_key), None)
         if not matching_site:
             raise HTTPException(status_code=401, detail="Invalid or revoked X-GriffinOps-API-Key.")
         site_name = matching_site["name"]
@@ -251,9 +319,14 @@ def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
             latency_ms=req.latency_ms,
             status_code=req.status_code,
             payload_bytes=req.payload_bytes,
-            api_key=req.api_key,
-            site_name=site_name
+            api_key=effective_api_key,
+            site_name=site_name,
+            cpu_percent=req.cpu_percent,
+            memory_percent=req.memory_percent
         )
+        if info:
+            info["latest_latency_ms"] = req.latency_ms
+            storage.mark_api_key_dirty(effective_api_key, info["requests_total"], req.latency_ms)
 
     alert_info = None
     if (req.latency_ms >= 200.0 or req.status_code >= 400) and watchdog:
@@ -272,7 +345,7 @@ def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
 
     return {
         "status": "INGESTED",
-        "api_key": req.api_key,
+        "api_key": effective_api_key,
         "recorded_latency_ms": req.latency_ms,
         "status_code": req.status_code,
         "site_name": site_name,
@@ -282,15 +355,9 @@ def ingest_telemetry_sdk_ping(req: IngestTelemetryRequest):
 @router.post("/telemetry/test-ping")
 def send_test_telemetry_ping(req: TestPingRequest):
     """
-    Interactive test helper: Ingests a real telemetry point for immediate developer verification.
+    Interactive test helper: Acknowledges test ping without polluting history with fake data.
     """
-    return ingest_telemetry_sdk_ping(IngestTelemetryRequest(
-        api_key=req.api_key,
-        latency_ms=req.latency_ms or 42.5,
-        status_code=req.status_code or 200,
-        payload_bytes=2048,
-        endpoint=req.endpoint or "/test/ping"
-    ))
+    return {"status": "ACKNOWLEDGED", "message": "Test ping received. No synthetic data was written to history."}
 
 @router.delete("/keys/{key_id}")
 def revoke_api_key(key_id: str):
@@ -346,10 +413,17 @@ def get_health():
     }
 
 @router.get("/telemetry/live")
-def get_live_telemetry():
+def get_live_telemetry(api_endpoint: Optional[str] = None):
     telemetry = {}
     if real_website_monitor:
         real_tel = real_website_monitor.get_all_real_telemetry()
+        if api_endpoint:
+            filtered_sites = _filter_sites_for_endpoint(api_endpoint)
+            allowed_slugs = {
+                s["name"].lower().replace(" ", "-").replace("&", "and").replace("/", "-")
+                for s in (filtered_sites or [])
+            }
+            real_tel = {k: v for k, v in real_tel.items() if k in allowed_slugs or k == api_endpoint}
         for svc_name, df in real_tel.items():
             if not df.empty:
                 telemetry[svc_name] = df.copy()
@@ -369,42 +443,57 @@ def get_live_telemetry():
     return result
 
 @router.get("/forecast")
-def get_tcn_forecast():
+def get_tcn_forecast(api_endpoint: Optional[str] = None):
     telemetry = {}
     if real_website_monitor:
         real_tel = real_website_monitor.get_all_real_telemetry()
+        if api_endpoint:
+            filtered_sites = _filter_sites_for_endpoint(api_endpoint)
+            allowed_slugs = {
+                s["name"].lower().replace(" ", "-").replace("&", "and").replace("/", "-")
+                for s in (filtered_sites or [])
+            }
+            real_tel = {k: v for k, v in real_tel.items() if k in allowed_slugs or k == api_endpoint}
         for svc_name, df in real_tel.items():
             if not df.empty:
                 telemetry[svc_name] = df.copy()
 
     if not telemetry:
-        return {"services": {}}
+        return {"status": "NO_DATA", "message": "No real telemetry ingested yet.", "services": {}}
 
     z_scores = normalizer.compute_z_scores(telemetry)
     min_len = min([len(df) for df in telemetry.values()])
     tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=min(30, max(5, min_len)))
     if tensor is None or len(service_names) == 0:
-        return {"services": {}}
-    return tcn_predictor.predict(tensor, service_names=service_names)
+        return {"status": "NO_DATA", "message": "No real telemetry ingested yet.", "services": {}}
+    results = tcn_predictor.predict(tensor, service_names=service_names)
+    if notifier:
+        notifier.dispatch_slack_if_anomaly(results)
+    return results
 
 @router.get("/topology")
-def get_topology():
+def get_topology(api_endpoint: Optional[str] = None):
     if not real_website_monitor or not real_website_monitor.sites:
         if not api_key_manager or not api_key_manager.keys:
-            return {"nodes": [], "edges": []}
+            return {"status": "NO_DATA", "message": "No real telemetry ingested yet.", "nodes": [], "edges": []}
+
+    sites = real_website_monitor.sites
+    if api_endpoint:
+        filtered_sites = _filter_sites_for_endpoint(api_endpoint)
+        sites = filtered_sites if filtered_sites is not None else []
 
     active_svcs = {}
-    for site in real_website_monitor.sites:
+    for site in sites:
         url = site.get("url", "")
         name = site.get("name", "Monitored Site")
-        slug = name.lower().replace(" ", "-").replace("/", "-")
-        lat = 35.0
-        status_code = 200
+        slug = name.lower().replace(" ", "-").replace("&", "and").replace("/", "-")
         hist = real_website_monitor.history.get(url, [])
-        if hist:
-            latest = hist[-1]
-            lat = latest.get("latency_ms", 35.0)
-            status_code = latest.get("status_code", 200)
+        if not hist:
+            # Skip nodes with zero real history (no fake 35ms placeholder)
+            continue
+        latest = hist[-1]
+        lat = latest.get("latency_ms", 0.0)
+        status_code = latest.get("status_code", 200)
 
         is_anomaly = lat > 250.0 or status_code >= 400
         active_svcs[slug] = {
@@ -416,23 +505,42 @@ def get_topology():
             "type": site.get("type", "Live Target")
         }
 
-    for k, info in api_key_manager.keys.items():
-        if info.get("status") == "ACTIVE":
-            slug = info.get("assigned_service", "custom-api")
-            if slug not in active_svcs:
-                lat = info.get("latest_latency_ms") or 35.0
-                active_svcs[slug] = {
-                    "id": slug,
-                    "label": info.get("name", slug),
-                    "status": "HEALTHY",
-                    "anomaly_score": 0.2,
-                    "latency_ms": lat,
-                    "type": "API Service"
-                }
+    if not api_endpoint:
+        for k, info in (api_key_manager.keys.items() if api_key_manager else []):
+            if info.get("status") == "ACTIVE":
+                slug = info.get("assigned_service", "custom-api")
+                lat = info.get("latest_latency_ms")
+                if slug not in active_svcs and lat is not None:
+                    active_svcs[slug] = {
+                        "id": slug,
+                        "label": info.get("name", slug),
+                        "status": "HEALTHY",
+                        "anomaly_score": 0.2,
+                        "latency_ms": lat,
+                        "type": "API Service"
+                    }
+    else:
+        for k, info in (api_key_manager.keys.items() if api_key_manager else []):
+            if info.get("status") == "ACTIVE":
+                slug = info.get("assigned_service", "custom-api")
+                name = info.get("name", slug)
+                if slug == api_endpoint or name.lower() == api_endpoint.lower():
+                    lat = info.get("latest_latency_ms")
+                    if slug not in active_svcs and lat is not None:
+                        active_svcs[slug] = {
+                            "id": slug,
+                            "label": name,
+                            "status": "HEALTHY",
+                            "anomaly_score": 0.2,
+                            "latency_ms": lat,
+                            "type": "API Service"
+                        }
 
     nodes = list(active_svcs.values())
-    edges = []
+    if not nodes:
+        return {"status": "NO_DATA", "message": "No real telemetry ingested yet.", "nodes": [], "edges": []}
 
+    edges = []
     # Build edges between discovered nodes
     if len(nodes) >= 2:
         for i in range(len(nodes) - 1):
@@ -441,7 +549,7 @@ def get_topology():
             edges.append({
                 "source": src,
                 "target": tgt,
-                "lag_ms": int(abs(nodes[i]["latency_ms"] - nodes[tgt_idx if (tgt_idx:=i+1) < len(nodes) else 0]["latency_ms"]) + 12)
+                "lag_ms": int(abs(nodes[i]["latency_ms"] - nodes[i + 1]["latency_ms"]) + 12)
             })
 
     return {"nodes": nodes, "edges": edges}
@@ -496,21 +604,49 @@ def get_signoz_status():
     return telemetry_ingestor.check_signoz_status()
 
 @router.get("/audit-reports/latest")
-def get_latest_audit_report(algorithm: str = "composite"):
-    active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
-    telemetry = telemetry_ingestor.generate_synthetic_telemetry(sequence_length=60, active_fault=active_fault)
-    
+def get_latest_audit_report(algorithm: str = "composite", api_endpoint: Optional[str] = None):
+    telemetry = {}
+    if real_website_monitor:
+        real_tel = real_website_monitor.get_all_real_telemetry()
+        if api_endpoint:
+            filtered_sites = _filter_sites_for_endpoint(api_endpoint)
+            allowed_slugs = {
+                s["name"].lower().replace(" ", "-").replace("&", "and").replace("/", "-")
+                for s in (filtered_sites or [])
+            }
+            real_tel = {k: v for k, v in real_tel.items() if k in allowed_slugs or k == api_endpoint}
+        for svc_name, df in real_tel.items():
+            if not df.empty:
+                telemetry[svc_name] = df.copy()
+
     if not telemetry:
         return {
-            "report_id": "GO-RPT-NOMINAL",
-            "system_status": "HEALTHY",
-            "forecasted_time_to_failure_human": "HEALTHY (Nominal)",
-            "message": "Awaiting active telemetry streams."
+            "status": "NO_DATA",
+            "message": "No real telemetry received yet. Ingest SDK data to generate an audit report."
         }
 
+    active_fault = fault_simulator.get_status().get("fault") if fault_simulator else None
+    if active_fault:
+        target = active_fault.get("target_service")
+        if target and target in telemetry:
+            df = telemetry[target]
+            mult = active_fault.get("latency_multiplier", 3.5)
+            df["latency_ms"] = df["latency_ms"] * mult
+            if "cpu_spike_percent" in active_fault:
+                df["cpu_percent"] = active_fault["cpu_spike_percent"]
+            if "error_rate_spike" in active_fault:
+                df["error_rate"] = active_fault["error_rate_spike"]
+
     z_scores = normalizer.compute_z_scores(telemetry)
-    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=30)
+    min_len = min([len(df) for df in telemetry.values()])
+    tensor, service_names = normalizer.to_tensor_format(z_scores, sequence_length=min(30, max(5, min_len)))
     
+    if tensor is None or len(service_names) == 0:
+        return {
+            "status": "NO_DATA",
+            "message": "Insufficient telemetry history. Ingest more SDK data points."
+        }
+
     tcn_results = tcn_predictor.predict(tensor, service_names=service_names)
     report = rca_engine.analyze_root_cause(tcn_results, z_scores, active_fault=active_fault, algorithm=algorithm)
     return report
@@ -518,9 +654,49 @@ def get_latest_audit_report(algorithm: str = "composite"):
 @router.get("/audit-reports/{report_id}/pdf")
 def download_pdf_report(report_id: str):
     report = get_latest_audit_report()
+    if report.get("status") == "NO_DATA":
+        raise HTTPException(status_code=400, detail="Cannot generate PDF: No real telemetry ingested yet.")
     report["report_id"] = report_id
     filepath = pdf_generator.generate_pdf_report(report)
     return FileResponse(filepath, media_type="application/pdf", filename=f"GriffinOps_Audit_Report_{report_id}.pdf")
+
+# --- UNIFIED REPORT DOWNLOADS (PDF + DOCX) ---
+@router.post("/reports/download")
+def download_report(req: ReportDownloadRequest):
+    """
+    Generates a fresh audit report from current TCN/RCA state and streams it as a
+    downloadable PDF or DOCX.  Body: { "format": "pdf"|"docx", "report_id": optional }.
+    """
+    report = get_latest_audit_report(api_endpoint=req.api_endpoint)
+    if isinstance(report, dict) and report.get("status") == "NO_DATA":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot generate report: No real telemetry ingested yet. Ingest SDK data first."
+        )
+
+    # Override report_id if the caller supplies one (e.g. the UI passes the cached id)
+    if req.report_id:
+        report["report_id"] = req.report_id
+
+    fmt      = (req.format or "pdf").lower().strip()
+    rid      = report.get("report_id", "LIVE")
+
+    if fmt == "docx":
+        filepath = docx_generator.generate_docx_audit_report(report)
+        return FileResponse(
+            filepath,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=f"GriffinOps_Audit_Report_{rid}.docx",
+            headers={"Content-Disposition": f'attachment; filename="GriffinOps_Audit_Report_{rid}.docx"'}
+        )
+    else:  # default: pdf
+        filepath = pdf_generator.generate_pdf_report(report)
+        return FileResponse(
+            filepath,
+            media_type="application/pdf",
+            filename=f"GriffinOps_Audit_Report_{rid}.pdf",
+            headers={"Content-Disposition": f'attachment; filename="GriffinOps_Audit_Report_{rid}.pdf"'}
+        )
 
 @router.get("/watchdog/history")
 def get_watchdog_history():
@@ -530,6 +706,11 @@ def get_watchdog_history():
 def trigger_slack_alert():
     report = get_latest_audit_report()
     return notifier.send_slack_alert(report)
+
+@router.post("/alerts/slack/test")
+def send_slack_test(req: Optional[SlackTestRequest] = None):
+    target_url = req.slack_webhook_url if req else None
+    return notifier.send_slack_test_alert(target_url=target_url)
 
 @router.post("/alerts/email")
 def trigger_email_alert(req: EmailAlertRequest):

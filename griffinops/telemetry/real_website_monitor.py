@@ -1,6 +1,7 @@
 import time
 import pandas as pd
 from typing import Dict, List, Optional
+from griffinops.db.storage import storage
 
 
 class RealWebsiteMonitor:
@@ -10,8 +11,11 @@ class RealWebsiteMonitor:
     Zero mockups, zero artificial ping loops, zero hardcoded seed data.
     """
     def __init__(self):
-        self.sites: List[dict] = []
-        self.history: Dict[str, List[dict]] = {}
+        self.sites: List[dict] = storage.load_monitored_sites()
+        self.history: Dict[str, List[dict]] = storage.load_telemetry_history(limit_per_site=60)
+        for s in self.sites:
+            if s["url"] not in self.history:
+                self.history[s["url"]] = []
 
     def add_monitored_site(self, name: str, url: str, site_type: str = "Live Web App (SDK)", api_key: Optional[str] = None) -> dict:
         if not url.startswith("http://") and not url.startswith("https://") and not url.startswith("tcp://") and not url.startswith("file://"):
@@ -22,6 +26,7 @@ class RealWebsiteMonitor:
             if existing["url"] == url or existing["name"].lower() == name.lower():
                 if api_key:
                     existing["api_key"] = api_key
+                    storage.save_monitored_site(existing)
                 return existing
 
         new_site = {
@@ -35,16 +40,21 @@ class RealWebsiteMonitor:
         if url not in self.history:
             self.history[url] = []
 
+        storage.save_monitored_site(new_site)
         return new_site
 
-    def record_telemetry(self, url: str, latency_ms: float, status_code: int = 200, payload_bytes: int = 1024, api_key: Optional[str] = None, site_name: Optional[str] = None) -> dict:
+    def record_telemetry(self, url: str, latency_ms: float, status_code: int = 200, payload_bytes: int = 1024, api_key: Optional[str] = None, site_name: Optional[str] = None, cpu_percent: Optional[float] = None, memory_percent: Optional[float] = None) -> dict:
         """
         Records genuine white-box telemetry received directly from the 1-Line JavaScript SDK or backend API stream.
+        cpu_percent and memory_percent are used as-is when provided by the Python SDK (real psutil values).
+        Falls back to formula/constant for backward compatibility with JS SDK and cURL clients.
         """
         now = time.time()
         error_rate = 0.0 if status_code < 400 else 1.0
-        cpu_pct = round(min(100.0, max(5.0, latency_ms / 2.5)), 2)
-        mem_pct = 40.0
+        # Use real psutil value if provided; otherwise derive from latency (JS/cURL clients)
+        cpu_pct = round(float(cpu_percent), 2) if cpu_percent is not None else round(min(100.0, max(5.0, latency_ms / 2.5)), 2)
+        # Use real psutil value if provided; otherwise fall back to constant 40.0 (JS/cURL clients)
+        mem_pct = round(float(memory_percent), 2) if memory_percent is not None else 40.0
 
         # Auto-register site if not present
         if not any(s["url"] == url for s in self.sites):
@@ -67,6 +77,7 @@ class RealWebsiteMonitor:
         if len(self.history[url]) > 60:
             self.history[url] = self.history[url][-60:]
 
+        storage.queue_telemetry_point(url, data_point)
         return data_point
 
     def get_live_site_metrics(self) -> Dict[str, dict]:

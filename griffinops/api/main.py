@@ -13,6 +13,7 @@ from griffinops.alerts.notifier import DualNotifier
 from griffinops.api.keys import APIKeyManager
 from griffinops.alerts.watchdog import BackgroundAlertWatchdog
 from griffinops.reports.pdf_generator import PDFReportGenerator
+from griffinops.db.storage import storage
 import griffinops.api.routes as routes
 
 app = FastAPI(
@@ -39,6 +40,20 @@ routes.notifier = DualNotifier()
 routes.api_key_manager = APIKeyManager()
 routes.pdf_generator = PDFReportGenerator()
 
+# Hydrate notifier with persisted credentials and Slack URL if available
+_saved_profile = storage.load_profile()
+if _saved_profile:
+    if _saved_profile.get("slack_webhook_url"):
+        routes.notifier.slack_webhook_url = _saved_profile["slack_webhook_url"]
+    routes.notifier.update_credentials(
+        smtp_host=_saved_profile.get("smtp_host"),
+        smtp_port=_saved_profile.get("smtp_port") or 587,
+        smtp_user=_saved_profile.get("smtp_user"),
+        smtp_pass=_saved_profile.get("smtp_pass"),
+        brevo_api_key=_saved_profile.get("brevo_api_key"),
+        resend_api_key=_saved_profile.get("resend_api_key")
+    )
+
 # Initialize & start automated background watchdog daemon
 routes.watchdog = BackgroundAlertWatchdog(
     telemetry_ingestor=routes.telemetry_ingestor,
@@ -49,6 +64,16 @@ routes.watchdog = BackgroundAlertWatchdog(
     notifier=routes.notifier
 )
 routes.watchdog.start()
+
+@app.on_event("startup")
+def startup_event():
+    storage.start_flusher()
+
+@app.on_event("shutdown")
+def shutdown_event():
+    if routes.watchdog:
+        routes.watchdog.stop()
+    storage.shutdown()
 
 # Include REST routers
 app.include_router(routes.router)

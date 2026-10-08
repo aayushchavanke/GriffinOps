@@ -16,3 +16,6 @@ opentelemetry-api
 opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-http
 opentelemetry-instrumentation-fastapi
+psutil>=5.9.0
+httpx2>=2.13.0           # Required by starlette>=1.6 TestClient (used in tests/test_all.py)
+psycopg2-binary>=2.9.9

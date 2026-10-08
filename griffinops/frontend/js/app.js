@@ -1,6 +1,10 @@
 let authToken = localStorage.getItem("gop_token") || null;
 let currentUser = JSON.parse(localStorage.getItem("gop_user") || "null");
+let activeApiKey = null;  // Global site filter (url, name, or slug). null = all sites
+let siteUrlToSlug = {};   // Map site URL -> slug for cross-referencing
 let currentService = null;
+let lastTelemetryService = null;
+const MAX_TELEMETRY_POINTS = 40;
 let selectedAPIEndpoint = null;
 
 let liveTelemetryChart = null;
@@ -9,6 +13,7 @@ let illustrationForecastChart = null;
 let pollTimer = null;
 
 let MICROSERVICES = [];
+let lastAuditReport = null;   // tracks the last successfully polled non-empty audit report
 
 // === Datadog Time-Range Selector State ===
 let activeTimeRange = 'live'; // live | 15m | 1h | 24h
@@ -99,7 +104,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     requestAnimationFrame(animateHalo);
   }
-  requestAnimationFrame(animateHalo);
+  // Wire click-outside-to-close on all modal backdrops
+  const modalCloseMap = {
+    "create-key-modal": closeCreateKeyModal,
+    "sdk-embed-modal": closeSDKEmbedModal,
+    "add-real-site-modal": closeAddRealSiteModal,
+    "premortem-modal": closePremortemModal
+  };
+
+  document.querySelectorAll(".modal-overlay").forEach(overlay => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        const closeFn = modalCloseMap[overlay.id];
+        if (typeof closeFn === "function") {
+          closeFn();
+        } else {
+          overlay.style.display = "none";
+        }
+      }
+    });
+  });
+
+  // Global Escape-key-to-close handler as reliable fallback
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" || e.keyCode === 27) {
+      document.querySelectorAll(".modal-overlay").forEach(overlay => {
+        if (window.getComputedStyle(overlay).display !== "none") {
+          const closeFn = modalCloseMap[overlay.id];
+          if (typeof closeFn === "function") {
+            closeFn();
+          } else {
+            overlay.style.display = "none";
+          }
+        }
+      });
+    }
+  });
 
   if (authToken) {
     showMainApp();
@@ -223,6 +263,7 @@ function showMainApp() {
   initIllustrationChart();
   
   fetchUserProfile();
+  populateSiteSelector();
   fetchTopology();
   fetchAPIKeys();
   fetchMonitoredAPIs();
@@ -271,7 +312,8 @@ function switchTab(tabId) {
 
 async function fetchRealWebsites() {
   try {
-    const resp = await fetch("/api/v1/real-monitor/live");
+    const qs = activeApiKey ? `?api_endpoint=${encodeURIComponent(activeApiKey)}` : "";
+    const resp = await fetch(`/api/v1/real-monitor/live${qs}`);
     if (resp.ok) {
       const sites = await resp.json();
       const tbody = document.getElementById("real-websites-table-body");
@@ -283,6 +325,9 @@ async function fetchRealWebsites() {
         return;
       }
       siteList.forEach(site => {
+        if (site.url) {
+          siteUrlToSlug[site.url] = site.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+        }
         const lat = site.latest.latency_ms;
         const status = site.latest.status_code;
         const isHazard = lat > 250.0 || status >= 400 || faultInjected;
@@ -338,6 +383,9 @@ async function submitAddRealSite() {
       closeAddRealSiteModal();
       if (nameEl) nameEl.value = "";
       if (urlEl) urlEl.value = "";
+      populateSiteSelector();
+      fetchRealWebsites();
+      fetchTopology();
       pollData();
     } else {
       showToast("❌ Could not connect to target URL.");
@@ -480,6 +528,10 @@ async function fetchUserProfile() {
       if (devEmailsInput && p.developer_emails) {
         devEmailsInput.value = p.developer_emails.join(", ");
       }
+      const slackInput = document.getElementById("pref-slack-webhook");
+      if (slackInput && p.slack_webhook_url !== undefined) {
+        slackInput.value = p.slack_webhook_url;
+      }
       const alertsEnabledInput = document.getElementById("pref-alerts-enabled");
       if (alertsEnabledInput && p.email_alerts_enabled !== undefined) {
         alertsEnabledInput.checked = p.email_alerts_enabled;
@@ -499,12 +551,13 @@ async function fetchUserProfile() {
 async function saveProfileSettings() {
   const emailsRaw = document.getElementById("pref-dev-emails") ? document.getElementById("pref-dev-emails").value : "";
   const emails = emailsRaw.split(",").map(e => e.trim()).filter(e => e.length > 0);
+  const slackUrl = document.getElementById("pref-slack-webhook") ? document.getElementById("pref-slack-webhook").value.trim() : "";
   const enabledInput = document.getElementById("pref-alerts-enabled");
   const enabled = enabledInput ? enabledInput.checked : true;
   const orgInput = document.getElementById("pref-org-name");
   const orgName = (orgInput && orgInput.value.trim()) ? orgInput.value.trim() : "SIES GST AI & Data Science Team";
 
-  showToast("💾 Saving notification recipient email...");
+  showToast("💾 Saving alert preferences & Slack webhook...");
   try {
     const resp = await fetch("/api/v1/user/profile", {
       method: "PUT",
@@ -514,18 +567,45 @@ async function saveProfileSettings() {
         email: emails[0] || (currentUser ? currentUser.email : "user@company.com"),
         organization: orgName,
         developer_emails: emails,
-        email_alerts_enabled: enabled
+        email_alerts_enabled: enabled,
+        slack_webhook_url: slackUrl
       })
     });
     if (resp.ok) {
       const profileOrgSpan = document.getElementById("profile-org");
       if (profileOrgSpan) profileOrgSpan.innerText = orgName;
-      showToast("✅ Notification recipient email saved successfully!");
+      showToast("✅ Alert settings & Slack webhook saved successfully!");
     } else {
       showToast("❌ Failed to save preferences.");
     }
   } catch (err) {
     showToast("Error updating preferences: " + err.message);
+  }
+}
+
+async function sendTestAlertSlack() {
+  const slackInput = document.getElementById("pref-slack-webhook");
+  const webhookUrl = slackInput ? slackInput.value.trim() : "";
+  if (!webhookUrl) {
+    showToast("⚠️ Please enter a Slack Webhook URL first.");
+    return;
+  }
+  showToast("💬 Sending test alert to Slack webhook...");
+  try {
+    const resp = await fetch("/api/v1/alerts/slack/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slack_webhook_url: webhookUrl })
+    });
+    const res = await resp.json();
+    if (res.status === "SUCCESS") {
+      showToast("🎉 Slack test alert delivered successfully! Check your channel.");
+      fetchWatchdogHistory();
+    } else {
+      showToast(`❌ Slack Error: ${res.message || 'Failed to dispatch alert'}`);
+    }
+  } catch (err) {
+    showToast("Error connecting to Slack: " + err.message);
   }
 }
 
@@ -584,21 +664,22 @@ function initTelemetryChart() {
     data: {
       labels: [],
       datasets: [
-        { label: "Latency (ms)", data: [], borderColor: "#6366f1", backgroundColor: "rgba(99, 102, 241, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y" },
-        { label: "CPU Saturation (%)", data: [], borderColor: "#f43f5e", backgroundColor: "rgba(244, 63, 94, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y1" },
-        { label: "Error Rate", data: [], borderColor: "#8b5cf6", backgroundColor: "rgba(139, 92, 246, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y2" },
-        { label: "Memory Footprint (%)", data: [], borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y1" }
+        { label: "Latency (ms)", data: [], borderColor: "#6366f1", backgroundColor: "rgba(99, 102, 241, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y", fill: true, spanGaps: true, pointRadius: 2.5, pointHoverRadius: 5 },
+        { label: "CPU Saturation (%)", data: [], borderColor: "#f43f5e", backgroundColor: "rgba(244, 63, 94, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y1", fill: true, spanGaps: true, pointRadius: 2.5, pointHoverRadius: 5 },
+        { label: "Error Rate", data: [], borderColor: "#8b5cf6", backgroundColor: "rgba(139, 92, 246, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y2", fill: true, spanGaps: true, pointRadius: 2.5, pointHoverRadius: 5 },
+        { label: "Memory Footprint (%)", data: [], borderColor: "#10b981", backgroundColor: "rgba(16, 185, 129, 0.08)", borderWidth: 2, tension: 0.3, yAxisID: "y1", fill: true, spanGaps: true, pointRadius: 2.5, pointHoverRadius: 5 }
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
+      animation: false,
       scales: {
-        x: { grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } },
-        y: { type: "linear", display: true, position: "left", title: { display: true, text: "Latency (ms)", color: "#6366f1" }, grid: { color: "rgba(203, 213, 225, 0.4)" }, ticks: { color: "#64748b" } },
-        y1: { type: "linear", display: true, position: "right", title: { display: true, text: "Resource (%)", color: "#f43f5e" }, grid: { drawOnChartArea: false }, ticks: { color: "#64748b" } },
+        x: { grid: { color: "rgba(255, 255, 255, 0.1)" }, ticks: { color: "#94a3b8", maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+        y: { type: "linear", display: true, position: "left", title: { display: true, text: "Latency (ms)", color: "#a5b4fc" }, grid: { color: "rgba(255, 255, 255, 0.1)" }, ticks: { color: "#94a3b8" }, beginAtZero: true },
+        y1: { type: "linear", display: true, position: "right", title: { display: true, text: "Resource (%)", color: "#fda4af" }, grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8" }, min: 0, max: 100 },
         y2: { type: "linear", display: false, min: 0, max: 1 }
       },
-      plugins: { legend: { labels: { color: "#334155", font: { family: "'Plus Jakarta Sans', sans-serif", weight: '600' } } } }
+      plugins: { legend: { labels: { color: "#e2e8f0", font: { family: "'Plus Jakarta Sans', sans-serif", weight: '600' } } } }
     }
   });
 }
@@ -648,24 +729,43 @@ function initIllustrationChart() {
 
 async function pollData() {
   try {
+    const qs = activeApiKey ? `?api_endpoint=${encodeURIComponent(activeApiKey)}` : "";
     const [telemetryResp, forecastResp, auditResp] = await Promise.all([
-      fetch("/api/v1/telemetry/live"),
-      fetch("/api/v1/forecast"),
-      fetch("/api/v1/audit-reports/latest")
+      fetch(`/api/v1/telemetry/live${qs}`),
+      fetch(`/api/v1/forecast${qs}`),
+      fetch(`/api/v1/audit-reports/latest${qs}`)
     ]);
     
     if (telemetryResp.ok) {
       const telData = await telemetryResp.json();
       const keys = Object.keys(telData);
-      if (JSON.stringify(keys) !== JSON.stringify(MICROSERVICES)) {
+      // Sync MICROSERVICES list when it changes
+      const keysChanged = JSON.stringify(keys) !== JSON.stringify(MICROSERVICES);
+      if (keysChanged) {
         MICROSERVICES = keys;
-        if (MICROSERVICES.length > 0 && (!currentService || !MICROSERVICES.includes(currentService))) {
-          currentService = MICROSERVICES[0];
-        }
         initServiceTabs();
+      }
+      // ALWAYS re-validate currentService against live response (fixes site-selector bug)
+      if (keys.length > 0) {
+        if (!currentService || !telData[currentService]) {
+          if (activeApiKey) {
+            const match = _findServiceSlugForUrl(activeApiKey);
+            currentService = (match && telData[match]) ? match : keys[0];
+          } else {
+            currentService = keys[0];
+          }
+          if (keysChanged) updateServiceTabsUI();
+        }
       }
       if (currentService && telData[currentService]) {
         updateTelemetryChart(telData[currentService]);
+      } else if (liveTelemetryChart) {
+        lastTelemetryService = null;
+        liveTelemetryChart.data.labels = [];
+        liveTelemetryChart.data.datasets.forEach(ds => ds.data = []);
+        liveTelemetryChart.update("none");
+        const kpiLatency = document.getElementById("kpi-latency");
+        if (kpiLatency) kpiLatency.innerText = "— ms";
       }
     }
     
@@ -681,23 +781,184 @@ async function pollData() {
   } catch (err) {}
 }
 
+function updateForecastPanel(forecastData) {
+  const riskVal = document.getElementById("forecast-risk-val");
+  const ttfVal = document.getElementById("forecast-ttf-val");
+  const svcVal = document.getElementById("forecast-svc-val");
+  const crashVal = document.getElementById("kpi-crash-prob");
+  const revVal = document.getElementById("kpi-revenue-risk");
+
+  if (!forecastData || forecastData.status === "NO_DATA" || !forecastData.services || Object.keys(forecastData.services).length === 0) {
+    if (riskVal) riskVal.innerText = "0.0%";
+    if (ttfVal) ttfVal.innerText = "AWAITING DATA";
+    if (svcVal) svcVal.innerText = "None";
+    if (crashVal) crashVal.innerText = "0.0%";
+    if (revVal) revVal.innerText = "₹0 / min";
+    if (forecastChart) {
+      forecastChart.data.datasets[0].data = [];
+      forecastChart.update("none");
+    }
+    return;
+  }
+
+  const svcs = forecastData.services;
+  let targetSvc = null;
+  if (currentService && svcs[currentService]) {
+    targetSvc = currentService;
+  } else if (forecastData.highest_risk_service && svcs[forecastData.highest_risk_service]) {
+    targetSvc = forecastData.highest_risk_service;
+  } else {
+    targetSvc = Object.keys(svcs)[0];
+  }
+
+  const svcForecast = svcs[targetSvc];
+  const maxProb = forecastData.max_failure_prob ?? svcForecast?.failure_probability ?? 0.0;
+  const probPct = (maxProb * 100).toFixed(1) + "%";
+
+  let ttfText = "HEALTHY";
+  const ttfSec = svcForecast?.predicted_time_to_failure_sec ?? 0;
+  if (ttfSec > 0) {
+    const mins = Math.floor(ttfSec / 60);
+    const secs = ttfSec % 60;
+    ttfText = `T-${mins > 0 ? mins + 'm ' : ''}${secs}s`;
+  }
+
+  if (riskVal) riskVal.innerText = probPct;
+  if (ttfVal) ttfVal.innerText = ttfText;
+  if (svcVal) svcVal.innerText = targetSvc || "Nominal";
+  if (crashVal) crashVal.innerText = probPct;
+
+  const revRate = Math.round(maxProb * 1850);
+  if (revVal) revVal.innerText = `₹${revRate} / min`;
+
+  if (forecastChart && svcForecast?.forecast_z_scores) {
+    forecastChart.data.datasets[0].data = svcForecast.forecast_z_scores;
+    forecastChart.update("none");
+  }
+
+  if (typeof updateKPISparkline === "function") {
+    updateKPISparkline('crash', [maxProb * 100]);
+    updateKPISparkline('revenue', [revRate]);
+  }
+}
+
+async function populateSiteSelector() {
+  const sel = document.getElementById("global-site-selector");
+  if (!sel) return;
+  try {
+    const resp = await fetch("/api/v1/real-monitor/targets");
+    if (!resp.ok) return;
+    const sites = await resp.json();
+    const currentVal = activeApiKey || sel.value || "";
+    sel.innerHTML = '<option value="">— All Monitored Sites —</option>';
+    const siteList = Array.isArray(sites) ? sites : Object.values(sites);
+    siteList.forEach(s => {
+      const slug = s.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+      if (s.url) siteUrlToSlug[s.url] = slug;
+      const opt = document.createElement("option");
+      opt.value = s.url;
+      opt.textContent = `${s.name} (${s.url})`;
+      sel.appendChild(opt);
+    });
+    if (currentVal) sel.value = currentVal;
+  } catch (e) {}
+}
+
+function _findServiceSlugForUrl(url) {
+  if (!url) return null;
+  if (siteUrlToSlug[url]) return siteUrlToSlug[url];
+  const clean = url.toLowerCase().replace(/https?:\/\//, '').split('/')[0].replace(/[^a-z0-9]/g, '-');
+  for (const svc of MICROSERVICES) {
+    if (svc === clean || svc.includes(clean) || clean.includes(svc)) {
+      return svc;
+    }
+  }
+  return null;
+}
+
+function onSiteSelectorChange(value) {
+  activeApiKey = value ? value.trim() : null;
+  if (activeApiKey) {
+    const matchingSlug = _findServiceSlugForUrl(activeApiKey);
+    if (matchingSlug) {
+      currentService = matchingSlug;
+    }
+  } else {
+    currentService = MICROSERVICES.length > 0 ? MICROSERVICES[0] : null;
+  }
+  updateServiceTabsUI();
+  pollData();
+  fetchTopology();
+  fetchRealWebsites();
+  fetchAPIIllustrations();
+  showToast(activeApiKey ? `🔍 Filtered to: ${activeApiKey}` : "🌐 Showing aggregate data across all sites");
+}
+
+function updateServiceTabsUI() {
+  document.querySelectorAll("#services-selector .svc-tab").forEach(b => {
+    b.classList.toggle("active", b.innerText === currentService);
+  });
+}
+
 function updateTelemetryChart(svcData) {
   if (!svcData || !liveTelemetryChart) return;
-  const labels = svcData.timestamps.map(t => new Date(t * 1000).toLocaleTimeString());
-  liveTelemetryChart.data.labels = labels;
-  liveTelemetryChart.data.datasets[0].data = svcData.raw.latency_ms;
-  liveTelemetryChart.data.datasets[1].data = svcData.raw.cpu_percent;
-  liveTelemetryChart.data.datasets[2].data = svcData.raw.error_rate;
-  liveTelemetryChart.data.datasets[3].data = svcData.raw.memory_percent;
+
+  const raw = svcData.raw || {};
+  const timestamps = svcData.timestamps || [];
+  const len = timestamps.length;
+  if (len === 0) return;
+
+  // Reset rolling buffer if active service switched
+  if (currentService !== lastTelemetryService) {
+    lastTelemetryService = currentService;
+    liveTelemetryChart.data.labels = [];
+    liveTelemetryChart.data.datasets.forEach(ds => ds.data = []);
+  }
+
+  const isInitial = liveTelemetryChart.data.labels.length === 0;
+
+  if (isInitial) {
+    // Initial load: populate with up to MAX_TELEMETRY_POINTS from backend history
+    const startIdx = Math.max(0, len - MAX_TELEMETRY_POINTS);
+    for (let i = startIdx; i < len; i++) {
+      const t = timestamps[i];
+      const lbl = t ? new Date(t * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+      liveTelemetryChart.data.labels.push(lbl);
+      liveTelemetryChart.data.datasets[0].data.push(raw.latency_ms?.[i] ?? 0);
+      liveTelemetryChart.data.datasets[1].data.push(raw.cpu_percent?.[i] ?? 0);
+      liveTelemetryChart.data.datasets[2].data.push(raw.error_rate?.[i] ?? 0);
+      liveTelemetryChart.data.datasets[3].data.push(raw.memory_percent?.[i] ?? 0);
+    }
+  } else {
+    // Subsequent poll: append latest sample to rolling history
+    const lastIdx = len - 1;
+    const timeLabel = new Date().toLocaleTimeString();
+
+    liveTelemetryChart.data.labels.push(timeLabel);
+    liveTelemetryChart.data.datasets[0].data.push(raw.latency_ms?.[lastIdx] ?? 0);
+    liveTelemetryChart.data.datasets[1].data.push(raw.cpu_percent?.[lastIdx] ?? 0);
+    liveTelemetryChart.data.datasets[2].data.push(raw.error_rate?.[lastIdx] ?? 0);
+    liveTelemetryChart.data.datasets[3].data.push(raw.memory_percent?.[lastIdx] ?? 0);
+
+    // Maintain rolling window length (scroll old points off)
+    while (liveTelemetryChart.data.labels.length > MAX_TELEMETRY_POINTS) {
+      liveTelemetryChart.data.labels.shift();
+      liveTelemetryChart.data.datasets.forEach(ds => ds.data.shift());
+    }
+  }
+
   liveTelemetryChart.update("none");
 
   // Datadog KPI — live P95 latency
   const kpiLatency = document.getElementById("kpi-latency");
-  if (kpiLatency && svcData.raw?.latency_ms?.length > 0) {
-    const arr = svcData.raw.latency_ms;
-    const sorted = [...arr].sort((a, b) => a - b);
-    const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? arr[arr.length - 1];
-    kpiLatency.innerText = `${p95.toFixed(1)} ms`;
+  const latencyArr = liveTelemetryChart.data.datasets[0].data;
+  if (kpiLatency && latencyArr && latencyArr.length > 0) {
+    const valid = latencyArr.filter(v => typeof v === "number" && !isNaN(v));
+    if (valid.length > 0) {
+      const sorted = [...valid].sort((a, b) => a - b);
+      const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? sorted[sorted.length - 1];
+      kpiLatency.innerText = `${p95.toFixed(1)} ms`;
+    }
   }
 }
 
@@ -863,7 +1124,22 @@ function handleNRTileDrilldown(svc, metric, zScore) {
 function updateAuditReport(report) {
   const container = document.getElementById("report-content-body");
   if (!container) return;
-  if (!report || report.system_status === "HEALTHY") {
+  // Cache the last valid non-empty report so download buttons use the real report_id
+  if (report && report.status !== "NO_DATA" && report.report_id) {
+    lastAuditReport = report;
+    // Show/enable download buttons once we have real data
+    const pdfBtn  = document.getElementById("btn-download-pdf");
+    const docxBtn = document.getElementById("btn-download-docx");
+    if (pdfBtn)  pdfBtn.style.opacity  = "1";
+    if (docxBtn) docxBtn.style.opacity = "1";
+  }
+  if (!report || report.status === "NO_DATA") {
+    container.innerHTML = `<div class="empty-state">
+      <p style="color:var(--text-muted); font-size:13px;">📡 Awaiting real telemetry data. Ingest SDK metrics to generate an audit report.</p>
+    </div>`;
+    return;
+  }
+  if (report.system_status === "HEALTHY") {
     container.innerHTML = `<div class="empty-state"><p>🟢 System operational. Microservice telemetry baseline normal within robust bounds.</p></div>`;
     return;
   }
@@ -885,7 +1161,7 @@ function updateAuditReport(report) {
         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
           <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
             <span style="font-size:11px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Financial Risk Rate</span>
-            <span style="font-size:16px; font-weight:800; color:var(--pastel-rose);">${impact.estimated_loss_per_minute || '$450/min'}</span>
+            <span style="font-size:16px; font-weight:800; color:var(--pastel-rose);">${(impact.estimated_loss_per_minute || '$450/min').replace('$', '₹')}</span>
           </div>
           <div style="background:rgba(255,255,255,0.04); border:1px solid var(--glass-border-subtle); padding:12px; border-radius:10px;">
             <span style="font-size:11px; color:#94a3b8; display:block; text-transform:uppercase; font-weight:700; margin-bottom:4px;">Impacted Sessions</span>
@@ -920,8 +1196,10 @@ function updateAuditReport(report) {
       </div>
 
       <div style="background:rgba(255,255,255,0.04); border-left:3px solid var(--pastel-indigo); border-top:1px solid var(--glass-border-subtle); border-right:1px solid var(--glass-border-subtle); border-bottom:1px solid var(--glass-border-subtle); padding:14px; border-radius:0 10px 10px 0; font-family:var(--font-mono); font-size:12px; color:#e2e8f0;">
-        <strong>Deployment Commit:</strong> <code style="color:var(--pastel-indigo);">${commit.commit_id}</code> by ${commit.author}<br/>
-        <strong>Message:</strong> ${commit.message}
+        ${(commit.source === 'not_connected' || !commit.commit_id)
+          ? `<span style="color:#94a3b8; font-style:italic;">⚙️ No CI/CD integration configured — connect a Git webhook to enable deployment correlation.</span>`
+          : `<strong>Deployment Commit:</strong> <code style="color:var(--pastel-indigo);">${commit.commit_id}</code> by ${commit.author}<br/><strong>Message:</strong> ${commit.message}`
+        }
       </div>
 
       <!-- ACTIONABLE REMEDIATION SUGGESTION -->
@@ -957,7 +1235,8 @@ async function fetchAPIIllustrations(apiEndpoint) {
     const siteResp = await fetch("/api/v1/real-monitor/targets");
     if (siteResp.ok) {
       const sites = await siteResp.json();
-      Object.values(sites).forEach(s => {
+      const siteList = Array.isArray(sites) ? sites : Object.values(sites);
+      siteList.forEach(s => {
         const ep = s.url;
         if (!availableTargets.some(t => t.endpoint === ep)) {
           availableTargets.push({ endpoint: ep, name: s.name, service: s.name.toLowerCase().replace(/\s+/g, '-') });
@@ -966,7 +1245,24 @@ async function fetchAPIIllustrations(apiEndpoint) {
     }
   } catch (e) {}
 
+  // Filter available targets down to selected site if activeApiKey is set
+  if (activeApiKey) {
+    const siteSlug = siteUrlToSlug[activeApiKey] || activeApiKey.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const matched = availableTargets.filter(t => 
+      t.endpoint === activeApiKey || 
+      t.name === activeApiKey || 
+      t.service === activeApiKey ||
+      t.service === siteSlug ||
+      (t.endpoint && t.endpoint.includes(activeApiKey))
+    );
+    if (matched.length > 0) {
+      availableTargets = matched;
+    }
+  }
+
   if (!targetEndpoint && availableTargets.length > 0) {
+    targetEndpoint = availableTargets[0].endpoint;
+  } else if (targetEndpoint && availableTargets.length > 0 && !availableTargets.some(t => t.endpoint === targetEndpoint)) {
     targetEndpoint = availableTargets[0].endpoint;
   }
 
@@ -1057,14 +1353,10 @@ async function fetchAPIIllustrations(apiEndpoint) {
 
             <!-- Deployment & Ingress Context -->
             <div style="background:rgba(255,255,255,0.04); border-left:3px solid var(--pastel-indigo); border-top:1px solid var(--glass-border-subtle); border-right:1px solid var(--glass-border-subtle); border-bottom:1px solid var(--glass-border-subtle); padding:12px 16px; border-radius:0 10px 10px 0; font-size:12px; margin-bottom:16px; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; align-items:center;">
-              <div>
-                <span style="color:var(--text-muted);">Deployment Target:</span>
-                <code style="color:var(--pastel-indigo); font-weight:bold; margin-left:4px;">${commit.commit_id || 'c7a109e'}</code>
-                <span style="color:#94a3b8; margin-left:8px;">by ${commit.author || 'production-deploy@griffinops.io'}</span>
-              </div>
-              <div style="color:var(--text-muted); font-size:11px;">
-                ${timeOffset}
-              </div>
+              ${(commit.source === 'not_connected' || !commit.commit_id)
+                ? `<span style="color:#94a3b8; font-style:italic;">⚙️ No CI/CD integration configured.</span>`
+                : `<div><span style="color:var(--text-muted);">Deployment Target:</span><code style="color:var(--pastel-indigo); font-weight:bold; margin-left:4px;">${commit.commit_id}</code><span style="color:#94a3b8; margin-left:8px;">by ${commit.author}</span></div><div style="color:var(--text-muted); font-size:11px;">${timeOffset}</div>`
+              }
             </div>
 
             <!-- Target File & Production Configuration Patch -->
@@ -1078,6 +1370,7 @@ async function fetchAPIIllustrations(apiEndpoint) {
               <div style="background:var(--bg-code); border:1px solid var(--glass-border-subtle); border-radius:12px; padding:14px; font-family:var(--font-mono); font-size:12px; line-height:1.6; overflow-x:auto;">
                 ${formattedDiff || '<span style="color:var(--text-muted);">Analyzing configuration...</span>'}
               </div>
+              ${sugg.disclaimer ? `<div style="font-size:11px; color:var(--text-muted); font-style:italic; margin-top:6px; line-height:1.4;">${sugg.disclaimer}</div>` : ''}
             </div>
 
             <!-- Remediation Command & Action Toolbar -->
@@ -1092,7 +1385,7 @@ async function fetchAPIIllustrations(apiEndpoint) {
 
               <div style="display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn btn-primary" onclick="applyAIHotfix('${targetEndpoint}')">Apply AI Hotfix</button>
-                <button class="btn btn-secondary" onclick="createPullRequest('${commit.commit_id || 'PR-104'}', '${targetEndpoint}')">Create Pull Request</button>
+                <button class="btn btn-secondary" onclick="createPullRequest('${commit.commit_id || ''}', '${targetEndpoint}')" ${!commit.commit_id ? 'disabled title="No CI/CD integration configured"' : ''}>Create Pull Request</button>
                 <button class="btn btn-secondary" style="color:var(--pastel-rose); border-color:var(--pastel-rose-border);" onclick="rollbackDeployment('${data.target_service}')">Rollback Pod Deployment</button>
               </div>
             </div>
@@ -1160,7 +1453,6 @@ async function fetchAPIKeys() {
           <td><span class="badge ${k.status === 'ACTIVE' ? 'badge-mint' : 'badge-rose'}">${k.status}</span></td>
           <td style="display:flex; gap:6px; align-items:center;">
             <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${k.api_key}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK</button>
-            <button class="btn btn-secondary btn-sm" onclick="sendTestPingFor('${k.api_key}')" style="padding:4px 8px; font-size:11px;">⚡ Test Ping</button>
             <button class="btn btn-danger btn-sm" onclick="revokeKey('${k.key_id}')" style="padding:4px 8px; font-size:11px;">Revoke</button>
           </td>
         `;
@@ -1221,7 +1513,7 @@ async function fetchMonitoredAPIs() {
               ? `<span class="anomaly-badge">⚠ ANOMALY</span>`
               : `<span class="badge badge-platinum">${api.health_status || 'OK'}</span>`;
             const slaRisk = api.sla_tier ? api.sla_tier.match(/\$(\d+)\/min/) : null;
-            const riskPerMin = slaRisk ? `$${slaRisk[1]}/min` : '—';
+            const riskPerMin = slaRisk ? `₹${slaRisk[1]}/min` : '—';
             tr.innerHTML = `
               <td><strong style="color:var(--amber);">${api.api_endpoint}</strong></td>
               <td><code>${api.service}</code></td>
@@ -1325,6 +1617,7 @@ async function submitCreateAPIKey() {
       if (typeof fetchAPIKeys === "function") fetchAPIKeys();
       if (typeof fetchMonitoredAPIs === "function") fetchMonitoredAPIs();
       if (typeof fetchRealWebsites === "function") fetchRealWebsites();
+      if (typeof populateSiteSelector === "function") populateSiteSelector();
 
       const stepForm = document.getElementById("key-modal-step-form");
       const stepSuccess = document.getElementById("key-modal-step-success");
@@ -1336,11 +1629,11 @@ async function submitCreateAPIKey() {
 
       const htmlScript = `<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${currentGeneratedKey}"></script>`;
 
-      const pythonReq = `import requests\n\nheaders = {"X-GriffinOps-API-Key": "${currentGeneratedKey}"}\nrequests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 42.5, "status_code": 200})`;
+      const pythonReq = `import requests\nimport psutil  # pip install psutil — reads real CPU & memory from THIS machine\n\nheaders = {"X-GriffinOps-API-Key": "${currentGeneratedKey}"}\n\n# Capture real system metrics from the host running this script\ncpu = psutil.cpu_percent(interval=0.1)\nmem = psutil.virtual_memory().percent\n\nrequests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={\n    "latency_ms": 42.5,\n    "status_code": 200,\n    "cpu_percent": cpu,\n    "memory_percent": mem\n})`;
 
-      const jsFetch = `const axios = require('axios');\n\naxios.post('${window.location.origin}/api/v1/telemetry/ingest', \n  { latency_ms: 42.5, status_code: 200 }, \n  { headers: { 'X-GriffinOps-API-Key': '${currentGeneratedKey}' } }\n);`;
+      const jsFetch = `const axios = require('axios');\n// Note: browsers & Node.js have no OS-level CPU/memory API.\n// Use the Python snippet above for real cpu_percent & memory_percent.\n\naxios.post('${window.location.origin}/api/v1/telemetry/ingest', \n  { latency_ms: 42.5, status_code: 200 }, \n  { headers: { 'X-GriffinOps-API-Key': '${currentGeneratedKey}' } }\n);`;
 
-      const curlCmd = `curl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\\n  -H "X-GriffinOps-API-Key: ${currentGeneratedKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"latency_ms": 42.5, "status_code": 200}'`;
+      const curlCmd = `# Note: cURL cannot read real CPU/memory — use the Python snippet for real metrics.\ncurl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\\n  -H "X-GriffinOps-API-Key: ${currentGeneratedKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"latency_ms": 42.5, "status_code": 200}'`;
 
       if (document.getElementById("modal-code-box-html")) document.getElementById("modal-code-box-html").textContent = htmlScript;
       if (document.getElementById("modal-code-box-python")) document.getElementById("modal-code-box-python").textContent = pythonReq;
@@ -1357,40 +1650,6 @@ async function submitCreateAPIKey() {
   }
 }
 
-async function sendModalTestPing() {
-  if (!currentGeneratedKey) return;
-  await sendTestPingFor(currentGeneratedKey);
-}
-
-async function sendTestPingFor(apiKey, isChaos = false) {
-  const latency = isChaos ? 820.0 : Math.round(35.0 + Math.random() * 20.0);
-  const status = isChaos ? 504 : 200;
-  showToast(`⚡ Sending real test telemetry (${latency}ms, HTTP ${status})...`);
-
-  try {
-    const resp = await fetch("/api/v1/telemetry/test-ping", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        latency_ms: latency,
-        status_code: status
-      })
-    });
-    if (resp.ok) {
-      showToast(`🎉 Ingestion successful! Dashboard updated with real ${latency}ms metric.`);
-      pollData();
-      if (typeof fetchRealWebsites === "function") fetchRealWebsites();
-      if (typeof fetchMonitoredAPIs === "function") fetchMonitoredAPIs();
-      if (typeof fetchAPIKeys === "function") fetchAPIKeys();
-      if (typeof fetchTopology === "function") fetchTopology();
-    } else {
-      showToast("❌ Ingestion ping failed.");
-    }
-  } catch (err) {
-    showToast("Error sending test ping: " + err.message);
-  }
-}
 
 function copyGeneratedKeyText() {
   if (currentGeneratedKey) {
@@ -1431,21 +1690,70 @@ async function revokeKey(keyId) {
   } catch (err) {}
 }
 
-function downloadPDFReport() {
-  const reportId = "GO-RPT-LIVE";
-  window.open(`/api/v1/audit-reports/${reportId}/pdf`, "_blank");
-  showToast("📥 Downloading Pre-Mortem PDF Audit Report...");
+async function downloadPDFReport() {
+  const reportId = (lastAuditReport && lastAuditReport.report_id) || "GO-RPT-LIVE";
+  const btn = document.getElementById("btn-download-pdf");
+  const origHTML = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.textContent = "\u23F3 Generating..."; }
+  try {
+    const resp = await fetch("/api/v1/reports/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format: "pdf", report_id: reportId, api_endpoint: currentService || null })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast("\u274C " + (err.detail || "Could not generate PDF — ingest telemetry first."));
+      return;
+    }
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `GriffinOps_Audit_Report_${reportId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+    showToast("\uD83D\uDCE5 PDF Audit Report downloaded successfully!");
+  } catch (e) {
+    showToast("\u274C Download failed — check server connection.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origHTML || `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> Download PDF`; }
+  }
 }
 
-function downloadDOCXDoc() {
-  window.open("/api/v1/docs/project-report.docx", "_blank");
-  showToast("📄 Downloading Master Project Report (.DOCX)...");
+async function downloadDOCXReport() {
+  const reportId = (lastAuditReport && lastAuditReport.report_id) || "GO-RPT-LIVE";
+  const btn = document.getElementById("btn-download-docx");
+  const origHTML = btn ? btn.innerHTML : "";
+  if (btn) { btn.disabled = true; btn.textContent = "\u23F3 Generating..."; }
+  try {
+    const resp = await fetch("/api/v1/reports/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format: "docx", report_id: reportId, api_endpoint: currentService || null })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast("\u274C " + (err.detail || "Could not generate DOCX — ingest telemetry first."));
+      return;
+    }
+    const blob = await resp.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `GriffinOps_Audit_Report_${reportId}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+    showToast("\uD83D\uDCC4 DOCX Audit Report downloaded successfully!");
+  } catch (e) {
+    showToast("\u274C Download failed — check server connection.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origHTML || `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Download DOCX`; }
+  }
 }
 
-function downloadProjectReport() {
-  window.open("/api/v1/docs/project-report.docx", "_blank");
-  showToast("📄 Downloading Master Project Report (.DOCX)...");
-}
 
 // --- DYNAMIC COUNTDOWN TIMER FOR PRE-MORTEM OUTAGE HAZARDS ---
 let outageTimerSeconds = 240; // 4 minutes
@@ -1507,18 +1815,32 @@ function renderSnippets() {
   const scriptTag = `<!-- GriffinOps Single-Line Live Telemetry & Error Tracking SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${activeSDKApiKey}"></script>`;
 
   const pythonReq = `import requests
+import psutil  # pip install psutil — reads real CPU & memory from THIS machine
 
 headers = {"X-GriffinOps-API-Key": "${activeSDKApiKey}"}
-requests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={"latency_ms": 125.4, "status_code": 200})`;
+
+# Capture real system metrics from the host running this script
+cpu = psutil.cpu_percent(interval=0.1)
+mem = psutil.virtual_memory().percent
+
+requests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={
+    "latency_ms": 125.4,
+    "status_code": 200,
+    "cpu_percent": cpu,
+    "memory_percent": mem
+})`;
 
   const jsFetch = `const axios = require('axios');
+// Note: browsers & Node.js have no OS-level CPU/memory API.
+// Use the Python snippet above for real cpu_percent & memory_percent.
 
 axios.post('${window.location.origin}/api/v1/telemetry/ingest', 
   { latency_ms: 125.4, status_code: 200 }, 
   { headers: { 'X-GriffinOps-API-Key': '${activeSDKApiKey}' } }
 );`;
 
-  const curlCmd = `curl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\
+  const curlCmd = `# Note: cURL cannot read real CPU/memory — use the Python snippet for real metrics.
+curl -X POST "${window.location.origin}/api/v1/telemetry/ingest" \\
   -H "X-GriffinOps-API-Key: ${activeSDKApiKey}" \\
   -H "Content-Type: application/json" \\
   -d '{"latency_ms": 125.4, "status_code": 200}'`;
@@ -1539,7 +1861,8 @@ function copyActiveSnippet() {
 
 async function fetchTopology() {
   try {
-    const resp = await fetch("/api/v1/topology");
+    const qs = activeApiKey ? `?api_endpoint=${encodeURIComponent(activeApiKey)}` : "";
+    const resp = await fetch(`/api/v1/topology${qs}`);
     if (resp.ok) {
       const data = await resp.json();
       renderTopologySVG(data);
@@ -1551,7 +1874,7 @@ function renderTopologySVG(data) {
   var svg = document.getElementById("topology-svg");
   if (!svg) return;
   svg.innerHTML = "";
-  var width = svg.clientWidth || 700;
+  var width = Math.max(650, svg.clientWidth || 700);
   var height = 300;
 
   // SVG defs for soft pastel glow filters
@@ -1607,7 +1930,7 @@ function renderTopologySVG(data) {
     emptyText.setAttribute("fill", "#64748b");
     emptyText.setAttribute("font-size", "13px");
     emptyText.setAttribute("font-weight", "600");
-    emptyText.textContent = "No monitored targets registered yet. Generate an API Key or click '+ Monitor Website' above.";
+    emptyText.textContent = data.message || "No monitored targets with active telemetry. Ingest real telemetry to map topology.";
     svg.appendChild(emptyText);
     return;
   }

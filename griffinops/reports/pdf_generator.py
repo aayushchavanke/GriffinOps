@@ -54,7 +54,7 @@ class PDFReportGenerator:
                 fontName='Helvetica-Bold',
                 fontSize=13,
                 leading=16,
-                textColor=colors.HexColor('#00f2fe'),
+                textColor=colors.HexColor('#0f172a'),
                 spaceBefore=12,
                 spaceAfter=6
             )
@@ -122,12 +122,19 @@ class PDFReportGenerator:
             elements.append(Spacer(1, 15))
 
             # Correlated CI/CD Commit
-            elements.append(Paragraph("2. CORRELATED CI/CD DEPLOYMENT COMMIT", heading_style))
-            commit_text = f"<b>Commit ID:</b> {commit.get('commit_id')}<br/>" \
-                          f"<b>Author:</b> {commit.get('author')}<br/>" \
-                          f"<b>Commit Message:</b> {commit.get('message')}<br/>" \
-                          f"<b>Changed Files:</b> {', '.join(commit.get('changed_files', []))}"
-            elements.append(Paragraph(commit_text, code_style))
+            elements.append(Paragraph("2. CI/CD DEPLOYMENT CORRELATION", heading_style))
+            if commit.get("source") == "not_connected" or not commit.get("commit_id"):
+                elements.append(Paragraph(
+                    "<i>No CI/CD integration configured. Connect a Git webhook or deployment "
+                    "pipeline to enable real commit correlation.</i>",
+                    code_style
+                ))
+            else:
+                commit_text = f"<b>Commit ID:</b> {commit.get('commit_id')}<br/>" \
+                              f"<b>Author:</b> {commit.get('author')}<br/>" \
+                              f"<b>Commit Message:</b> {commit.get('message')}<br/>" \
+                              f"<b>Changed Files:</b> {', '.join(commit.get('changed_files', []))}"
+                elements.append(Paragraph(commit_text, code_style))
             elements.append(Spacer(1, 15))
 
             # Actionable Remediation

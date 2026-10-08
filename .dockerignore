@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.github
+.gitignore
+.env
+data/*.db
+email_previews/*.html
+pdf_reports/*.pdf
+docs_output/*.docx
+docs_output/*.png
+.pytest_cache
+tests/__pycache__

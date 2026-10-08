@@ -116,6 +116,15 @@
     <!-- Topbar -->
     <header class="topbar">
       <div class="page-title" id="page-title-display">Executive Overview &amp; Predictive Watchdog</div>
+      <div id="site-selector-wrap" class="site-selector-wrap">
+        <label for="global-site-selector" class="site-selector-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          Site:
+        </label>
+        <select id="global-site-selector" class="global-site-select" onchange="onSiteSelectorChange(this.value)">
+          <option value="">— All Monitored Sites —</option>
+        </select>
+      </div>
       <div class="topbar-right">
         <button class="btn btn-secondary btn-sm theme-toggle-btn" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark / Light Glass Mode">
           <span id="theme-icon-light">
@@ -177,7 +186,7 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </div>
             </div>
-            <div class="kpi-value" id="kpi-revenue-risk">$0 / min</div>
+            <div class="kpi-value" id="kpi-revenue-risk">₹0 / min</div>
             <div class="kpi-delta">Dynamic SLA-Weighted Rate</div>
           </div>
           <div class="kpi-card">
@@ -261,6 +270,33 @@
           </div>
         </section>
 
+        <!-- Pre-Mortem Audit Report Card -->
+        <section class="card" id="audit-report-card">
+          <div class="card-header">
+            <div>
+              <h2>🚨 Live Pre-Mortem Audit Report</h2>
+              <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">
+                Autonomous RCA &middot; PyTorch TCN &middot; RCAEval PageRank &middot; CI/CD Correlation
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <button class="btn btn-secondary btn-sm" id="btn-download-pdf" onclick="downloadPDFReport()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                Download PDF
+              </button>
+              <button class="btn btn-secondary btn-sm" id="btn-download-docx" onclick="downloadDOCXReport()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                Download DOCX
+              </button>
+            </div>
+          </div>
+          <div id="report-content-body">
+            <div class="empty-state">
+              <p style="color:var(--text-muted); font-size:13px;">📡 Awaiting real telemetry data. Ingest SDK metrics to generate an audit report.</p>
+            </div>
+          </div>
+        </section>
+
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════
@@ -335,7 +371,7 @@
               Evaluates directional Granger causality and FFT temporal phase lag shifts (τ*) across OpenTelemetry trace spans in real time to isolate root cause services from downstream ripple symptoms — <strong style="color:var(--pastel-indigo);">4 minutes prior to failure</strong>.
             </p>
             <div class="topology-wrapper">
-              <svg id="topology-svg" width="100%" height="300"></svg>
+              <svg id="topology-svg" width="100%" height="300" style="min-width:650px; display:block;"></svg>
             </div>
           </section>
         </div>
@@ -365,12 +401,12 @@
               </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;">
-              <div style="background:rgba(255,255,255,0.7);padding:16px;border-radius:14px;border:1px solid var(--glass-border);">
+            <div class="two-col-equal">
+              <div style="background:var(--glass-bg);padding:16px;border-radius:14px;border:1px solid var(--glass-border);border-top:1.5px solid var(--glass-border-top);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);">
                 <div style="font-size:11px;font-weight:700;color:var(--pastel-indigo);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">Span Dependency Call Tree</div>
                 <div id="trace-tree-container"></div>
               </div>
-              <div style="background:rgba(255,255,255,0.7);padding:16px;border-radius:14px;border:1px solid var(--glass-border);">
+              <div style="background:var(--glass-bg);padding:16px;border-radius:14px;border:1px solid var(--glass-border);border-top:1.5px solid var(--glass-border-top);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);">
                 <div style="font-size:11px;font-weight:700;color:var(--pastel-indigo);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;">TCN Forecast Confidence Interval (Z-Scores)</div>
                 <div class="chart-sm">
                   <canvas id="illustrationForecastChart"></canvas>
@@ -388,7 +424,7 @@
            TAB 5 — ALERTS, WEBHOOKS & SUPABASE AUTH
       ════════════════════════════════════════════════════════════════ -->
       <div class="tab-content" id="tab-profile">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
+        <div class="two-col-equal">
           <!-- Profile -->
           <section class="card">
             <div class="card-header">
@@ -426,14 +462,24 @@
               <input type="text" id="pref-dev-emails" placeholder="engineer@company.com, team-sre@company.com">
             </div>
 
+            <div class="form-group" style="margin-top:12px;">
+              <label style="display:flex;align-items:center;gap:6px;">
+                <span>Slack Incoming Webhook URL</span>
+                <span class="badge badge-purple" style="font-size:10px;padding:2px 6px;">Instant Dispatch</span>
+              </label>
+              <input type="url" id="pref-slack-webhook" placeholder="https://hooks.slack.com/services/T00/B00/XXXX">
+              <small style="color:var(--text-muted);font-size:11px;display:block;margin-top:3px;">Receive autonomous pre-mortem alerts directly in your team's Slack channel.</small>
+            </div>
+
             <div style="display:flex;align-items:center;gap:10px;margin:12px 0 14px 0;">
               <input type="checkbox" id="pref-alerts-enabled" checked style="width:auto;cursor:pointer;accent-color:var(--pastel-indigo);">
               <label for="pref-alerts-enabled" style="font-size:12px;color:var(--text-primary);cursor:pointer;margin-bottom:0;text-transform:none;">Enable Autonomous Background Alert Dispatches</label>
             </div>
 
-            <div style="display:flex;gap:10px;margin-top:14px;">
-              <button class="btn btn-primary" onclick="saveProfileSettings()">Save Notification Email</button>
-              <button class="btn btn-secondary" onclick="sendTestAlertEmail()">Send Test Alert</button>
+            <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="saveProfileSettings()">Save Alert Settings</button>
+              <button class="btn btn-secondary" onclick="sendTestAlertSlack()" id="btn-test-slack">💬 Send Test Slack Alert</button>
+              <button class="btn btn-secondary" onclick="sendTestAlertEmail()" id="btn-test-email">📧 Send Test Email</button>
             </div>
           </section>
         </div>
@@ -469,9 +515,8 @@
 </div>
 
 <!-- ═══════════════ CREATE API KEY MODAL ══════════════════════════════════ -->
-<!-- ═══════════════ CREATE API KEY MODAL ══════════════════════════════════ -->
 <div class="modal-overlay" id="create-key-modal">
-  <div class="modal-card" style="max-width:580px;">
+  <div class="modal-card">
     <!-- Step 1: Simple Input -->
     <div id="key-modal-step-form">
       <div class="modal-header">
@@ -503,8 +548,7 @@
           <code id="modal-generated-key" style="font-size:14px;font-weight:700;color:var(--pastel-indigo-text);font-family:var(--font-mono);">gop_live_…</code>
         </div>
         <div style="display:flex; gap:8px;">
-          <button class="btn btn-secondary btn-sm" onclick="copyGeneratedKeyText()">Copy Key</button>
-          <button class="btn btn-primary btn-sm" onclick="sendModalTestPing()" id="btn-modal-test-ping">⚡ Send Test Ping</button>
+          <button class="btn btn-primary btn-sm" onclick="copyGeneratedKeyText()">Copy Key</button>
         </div>
       </div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;">
@@ -537,8 +581,6 @@ axios.post('http://localhost:8000/api/v1/telemetry/ingest',
         <button class="btn btn-primary" onclick="closeCreateKeyModal()">Done &amp; View Dashboard ➔</button>
       </div>
     </div>
-  </div>
-</div>
   </div>
 </div>
 
