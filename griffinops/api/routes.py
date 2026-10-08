@@ -535,11 +535,12 @@ def get_topology(api_endpoint: Optional[str] = None):
                 slug = info.get("assigned_service", "custom-api")
                 lat = info.get("latest_latency_ms")
                 if slug not in active_svcs and lat is not None:
+                    is_anomaly = lat > 250.0
                     active_svcs[slug] = {
                         "id": slug,
                         "label": info.get("name", slug),
-                        "status": "HEALTHY",
-                        "anomaly_score": 0.2,
+                        "status": "HAZARD" if is_anomaly else "HEALTHY",
+                        "anomaly_score": 3.8 if is_anomaly else 0.2,
                         "latency_ms": lat,
                         "type": "API Service"
                     }
@@ -551,11 +552,12 @@ def get_topology(api_endpoint: Optional[str] = None):
                 if slug == api_endpoint or name.lower() == api_endpoint.lower():
                     lat = info.get("latest_latency_ms")
                     if slug not in active_svcs and lat is not None:
+                        is_anomaly = lat > 250.0
                         active_svcs[slug] = {
                             "id": slug,
                             "label": name,
-                            "status": "HEALTHY",
-                            "anomaly_score": 0.2,
+                            "status": "HAZARD" if is_anomaly else "HEALTHY",
+                            "anomaly_score": 3.8 if is_anomaly else 0.2,
                             "latency_ms": lat,
                             "type": "API Service"
                         }
