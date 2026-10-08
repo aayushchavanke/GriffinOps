@@ -19,6 +19,13 @@ class APIKeyManager:
         persisted = storage.load_api_keys()
         if persisted:
             self.keys.update(persisted)
+        if not self.keys:
+            self.generate_api_key(
+                name="Cloud Target Web Application",
+                target_url="https://aayushchavanke.github.io/griffinops-demo-target/",
+                owner_email="admin@griffinops.io",
+                predefined_key="gop_live_demo01"
+            )
 
     def generate_api_key(
         self,
@@ -26,13 +33,14 @@ class APIKeyManager:
         target_url: Optional[str] = None,
         endpoint: Optional[str] = None,
         owner_email: str = "admin@griffinops.io",
+        predefined_key: Optional[str] = None,
         **kwargs
     ) -> dict:
-        raw_key = f"gop_live_{uuid.uuid4().hex[:12]}"
+        raw_key = predefined_key or f"gop_live_{uuid.uuid4().hex[:12]}"
         key_id = f"key_{uuid.uuid4().hex[:8]}"
         service_slug = name.lower().replace(" ", "-").replace("&", "and").replace("/", "-")
         clean_url = target_url or f"https://{service_slug}.internal"
-        base_url = os.getenv("GRIFFINOPS_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+        base_url = os.getenv("GRIFFINOPS_PUBLIC_URL", "https://griffinops.up.railway.app").rstrip("/")
 
         html_snippet = f'<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="{base_url}/static/js/griffinops-sdk.js" data-api-key="{raw_key}"></script>'
         python_snippet = f'import requests\n\nheaders = {{"X-GriffinOps-API-Key": "{raw_key}"}}\nrequests.post("{base_url}/api/v1/telemetry/ingest", headers=headers, json={{"latency_ms": 42.5, "status_code": 200}})'
