@@ -22,6 +22,19 @@ CREATE TABLE IF NOT EXISTS user_profile (
     updated_at DOUBLE PRECISION
 );
 
+-- 1b. Persistent Multi-Tenant / Local Authentication Users
+CREATE TABLE IF NOT EXISTS auth_users (
+    user_id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    salt TEXT NOT NULL,
+    role TEXT DEFAULT 'DEVELOPER',
+    reset_code TEXT,
+    reset_code_expires DOUBLE PRECISION,
+    created_at DOUBLE PRECISION
+);
+
 -- 2. Monitored Microservices & Ingress Websites
 CREATE TABLE IF NOT EXISTS monitored_sites (
     url TEXT PRIMARY KEY,

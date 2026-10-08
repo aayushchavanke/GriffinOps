@@ -1,74 +1,73 @@
 import time
 import hashlib
+import hmac
+import secrets
 import uuid
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 SECRET_KEY = "griffinops-secret-key-sies-gst-ai-sre-copilot"
 
-# In-memory user database
-USERS_DB: Dict[str, dict] = {
-    "admin@griffinops.io": {
-        "user_id": "usr_admin001",
-        "email": "admin@griffinops.io",
-        "name": "SRE Lead Engineer",
-        "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
-        "role": "ADMIN"
-    }
-}
+def hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
+    """
+    Cryptographically secure password hashing using PBKDF2 HMAC SHA-256
+    with 100,000 iterations and 16-byte random hex salt.
+    """
+    if not salt:
+        salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        iterations=100_000
+    ).hex()
+    return hashed, salt
 
-# Active session tokens: token -> user_info
+def verify_password(password: str, stored_hash: str, salt: Optional[str] = None) -> bool:
+    """
+    Verifies a password against the stored hash and salt.
+    Supports PBKDF2 with constant-time comparison, plus legacy SHA-256 fallback.
+    """
+    if not password or not stored_hash:
+        return False
+
+    if salt:
+        computed = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode("utf-8"),
+            salt.encode("utf-8"),
+            iterations=100_000
+        ).hex()
+        if hmac.compare_digest(computed, stored_hash):
+            return True
+
+    # Legacy raw SHA-256 check (for backward compatibility with seeded accounts)
+    legacy_hash = hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return hmac.compare_digest(legacy_hash, stored_hash)
+
+# Active session tokens: token -> session dict
 SESSIONS_DB: Dict[str, dict] = {}
 
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def verify_password(password: str, password_hash: str) -> bool:
-    return hash_password(password) == password_hash
-
-def register_user(email: str, password: str, name: str) -> dict:
-    if email in USERS_DB:
-        raise ValueError(f"User with email '{email}' already exists.")
-    user_id = f"usr_{uuid.uuid4().hex[:8]}"
-    user = {
+def create_session(user_id: str, email: str, name: str, role: str) -> str:
+    token = f"gop_sess_{uuid.uuid4().hex}"
+    SESSIONS_DB[token] = {
         "user_id": user_id,
         "email": email,
         "name": name,
-        "password_hash": hash_password(password),
-        "role": "DEVELOPER"
-    }
-    USERS_DB[email] = user
-    return user
-
-def authenticate_user(email: str, password: str) -> Optional[dict]:
-    user = USERS_DB.get(email)
-    if not user:
-        return None
-    if not verify_password(password, user["password_hash"]):
-        return None
-    
-    # Generate session token
-    token = f"gop_sess_{uuid.uuid4().hex}"
-    SESSIONS_DB[token] = {
-        "user_id": user["user_id"],
-        "email": user["email"],
-        "name": user["name"],
-        "role": user["role"],
+        "role": role,
         "created_at": time.time()
     }
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": {
-            "user_id": user["user_id"],
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
-        }
-    }
+    return token
 
-def get_user_from_token(token: str) -> Optional[dict]:
+def get_session(token: str) -> Optional[dict]:
     if not token:
         return None
     if token.startswith("Bearer "):
         token = token.split(" ")[1]
     return SESSIONS_DB.get(token)
+
+def revoke_session(token: str) -> bool:
+    if not token:
+        return False
+    if token.startswith("Bearer "):
+        token = token.split(" ")[1]
+    return SESSIONS_DB.pop(token, None) is not None

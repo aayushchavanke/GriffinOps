@@ -149,34 +149,75 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+function clearAuthFeedback() {
+  ["login-error", "login-success", "reg-error", "reg-success", "forgot-error", "forgot-success"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.innerText = "";
+      el.style.display = "none";
+    }
+  });
+}
+
+function showAuthMessage(elementId, msg, isError = true) {
+  const el = document.getElementById(elementId);
+  if (el) {
+    el.innerText = msg;
+    el.style.display = "block";
+  }
+}
+
 function switchAuthTab(tab) {
-  document.getElementById("btn-tab-login").classList.remove("active");
-  document.getElementById("btn-tab-register").classList.remove("active");
-  document.getElementById("auth-form-login").style.display = "none";
-  document.getElementById("auth-form-register").style.display = "none";
+  clearAuthFeedback();
+  const btnLogin = document.getElementById("btn-tab-login");
+  const btnReg = document.getElementById("btn-tab-register");
+  const formLogin = document.getElementById("auth-form-login");
+  const formReg = document.getElementById("auth-form-register");
+  const formForgot = document.getElementById("auth-form-forgot");
+
+  if (btnLogin) btnLogin.classList.remove("active");
+  if (btnReg) btnReg.classList.remove("active");
+  if (formLogin) formLogin.style.display = "none";
+  if (formReg) formReg.style.display = "none";
+  if (formForgot) formForgot.style.display = "none";
 
   if (tab === "login") {
-    document.getElementById("btn-tab-login").classList.add("active");
-    document.getElementById("auth-form-login").style.display = "block";
-  } else {
-    document.getElementById("btn-tab-register").classList.add("active");
-    document.getElementById("auth-form-register").style.display = "block";
+    if (btnLogin) btnLogin.classList.add("active");
+    if (formLogin) formLogin.style.display = "block";
+  } else if (tab === "register") {
+    if (btnReg) btnReg.classList.add("active");
+    if (formReg) formReg.style.display = "block";
+  } else if (tab === "forgot") {
+    if (formForgot) formForgot.style.display = "block";
+    const resetBox = document.getElementById("forgot-reset-box");
+    if (resetBox) resetBox.style.display = "none";
   }
 }
 
 async function quickDemoLogin() {
-  document.getElementById("login-email").value = "admin@griffinops.io";
-  document.getElementById("login-pass").value = "admin123";
+  clearAuthFeedback();
+  const emailInput = document.getElementById("login-email");
+  const passInput = document.getElementById("login-pass");
+  if (emailInput) emailInput.value = "admin@griffinops.io";
+  if (passInput) passInput.value = "admin123";
   await handleLogin();
 }
 
 async function handleLogin() {
+  clearAuthFeedback();
   const emailInput = document.getElementById("login-email");
   const passInput = document.getElementById("login-pass");
-  const email = (emailInput && emailInput.value.trim()) ? emailInput.value.trim() : "admin@griffinops.io";
-  const pass = (passInput && passInput.value.trim()) ? passInput.value.trim() : "admin123";
-  const errDiv = document.getElementById("login-error");
-  if (errDiv) errDiv.innerText = "";
+  const email = emailInput ? emailInput.value.trim() : "";
+  const pass = passInput ? passInput.value : "";
+
+  if (!email || !pass) {
+    showAuthMessage("login-error", "Please enter both email address and password.");
+    return;
+  }
+
+  const btn = document.getElementById("btn-submit-login");
+  const prevText = btn ? btn.innerText : "";
+  if (btn) { btn.disabled = true; btn.innerText = "Authenticating..."; }
 
   try {
     const resp = await fetch("/api/v1/auth/login", {
@@ -190,26 +231,45 @@ async function handleLogin() {
       currentUser = data.user;
       localStorage.setItem("gop_token", authToken);
       localStorage.setItem("gop_user", JSON.stringify(currentUser));
+      showToast("Signed in as " + (currentUser.name || currentUser.email));
       showMainApp();
     } else {
-      errDiv.innerText = data.detail || "Authentication failed.";
+      showAuthMessage("login-error", data.detail || "Authentication failed. Please check your credentials.");
     }
   } catch (err) {
-    errDiv.innerText = "Server connection error.";
+    showAuthMessage("login-error", "Network error: Unable to connect to authentication server.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = prevText; }
   }
 }
 
 async function handleRegister() {
-  const name = document.getElementById("reg-name").value;
-  const email = document.getElementById("reg-email").value;
-  const pass = document.getElementById("reg-pass").value;
-  const errDiv = document.getElementById("reg-error");
-  errDiv.innerText = "";
+  clearAuthFeedback();
+  const name = document.getElementById("reg-name") ? document.getElementById("reg-name").value.trim() : "";
+  const email = document.getElementById("reg-email") ? document.getElementById("reg-email").value.trim() : "";
+  const pass = document.getElementById("reg-pass") ? document.getElementById("reg-pass").value : "";
+  const passConfirm = document.getElementById("reg-pass-confirm") ? document.getElementById("reg-pass-confirm").value : "";
 
   if (!name || !email || !pass) {
-    errDiv.innerText = "Please fill out all fields.";
+    showAuthMessage("reg-error", "Please fill in all required fields.");
     return;
   }
+  if (!email.includes("@") || !email.includes(".")) {
+    showAuthMessage("reg-error", "Please provide a valid email address.");
+    return;
+  }
+  if (pass.length < 6) {
+    showAuthMessage("reg-error", "Password must be at least 6 characters long.");
+    return;
+  }
+  if (pass !== passConfirm) {
+    showAuthMessage("reg-error", "Passwords do not match. Please re-enter.");
+    return;
+  }
+
+  const btn = document.getElementById("btn-submit-reg");
+  const prevText = btn ? btn.innerText : "";
+  if (btn) { btn.disabled = true; btn.innerText = "Creating Account..."; }
 
   try {
     const resp = await fetch("/api/v1/auth/register", {
@@ -219,15 +279,123 @@ async function handleRegister() {
     });
     const data = await resp.json();
     if (resp.ok) {
-      showToast("Account created via Supabase Auth! Signing in...");
-      document.getElementById("login-email").value = email;
-      document.getElementById("login-pass").value = pass;
-      handleLogin();
+      showAuthMessage("reg-success", "✅ Account created successfully! Redirecting to sign in...", false);
+      showToast("Account created successfully!");
+      setTimeout(() => {
+        switchAuthTab("login");
+        const loginEmail = document.getElementById("login-email");
+        const loginPass = document.getElementById("login-pass");
+        if (loginEmail) loginEmail.value = email;
+        if (loginPass) { loginPass.value = ""; loginPass.focus(); }
+        showAuthMessage("login-success", "Account created! Please enter your password to sign in.", false);
+      }, 1200);
     } else {
-      errDiv.innerText = data.detail || "Registration failed.";
+      showAuthMessage("reg-error", data.detail || "Registration failed.");
     }
   } catch (err) {
-    errDiv.innerText = "Server connection error.";
+    showAuthMessage("reg-error", "Network error: Unable to connect to authentication server.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = prevText; }
+  }
+}
+
+async function handleForgotPassword() {
+  clearAuthFeedback();
+  const emailInput = document.getElementById("forgot-email");
+  const email = emailInput ? emailInput.value.trim() : "";
+
+  if (!email || !email.includes("@")) {
+    showAuthMessage("forgot-error", "Please enter a valid registered email address.");
+    return;
+  }
+
+  const btn = document.getElementById("btn-send-reset");
+  const prevText = btn ? btn.innerText : "";
+  if (btn) { btn.disabled = true; btn.innerText = "Sending..."; }
+
+  try {
+    const resp = await fetch("/api/v1/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      showAuthMessage("forgot-success", data.message || "Reset instructions generated.", false);
+      const resetBox = document.getElementById("forgot-reset-box");
+      if (resetBox) resetBox.style.display = "block";
+      if (data.reset_code) {
+        const codeInput = document.getElementById("reset-code");
+        if (codeInput) codeInput.value = data.reset_code;
+      }
+    } else {
+      showAuthMessage("forgot-error", data.detail || "Unable to process password reset.");
+    }
+  } catch (err) {
+    showAuthMessage("forgot-error", "Network error: Failed to request password reset.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = prevText; }
+  }
+}
+
+async function handleResetPassword() {
+  clearAuthFeedback();
+  const emailInput = document.getElementById("forgot-email");
+  const email = emailInput ? emailInput.value.trim() : "";
+  const codeInput = document.getElementById("reset-code");
+  const code = codeInput ? codeInput.value.trim() : "";
+  const passInput = document.getElementById("reset-new-pass");
+  const newPass = passInput ? passInput.value : "";
+  const confirmInput = document.getElementById("reset-confirm-pass");
+  const confirmPass = confirmInput ? confirmInput.value : "";
+
+  if (!email) {
+    showAuthMessage("forgot-error", "Registered email address is required.");
+    return;
+  }
+  if (!code) {
+    showAuthMessage("forgot-error", "Please enter the 6-digit verification code.");
+    return;
+  }
+  if (newPass.length < 6) {
+    showAuthMessage("forgot-error", "New password must be at least 6 characters long.");
+    return;
+  }
+  if (newPass !== confirmPass) {
+    showAuthMessage("forgot-error", "Passwords do not match. Please re-enter.");
+    return;
+  }
+
+  const btn = document.getElementById("btn-submit-reset");
+  const prevText = btn ? btn.innerText : "";
+  if (btn) { btn.disabled = true; btn.innerText = "Updating..."; }
+
+  try {
+    const resp = await fetch("/api/v1/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email,
+        reset_code: code,
+        new_password: newPass
+      })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      showToast("Password updated successfully!");
+      switchAuthTab("login");
+      const loginEmail = document.getElementById("login-email");
+      const loginPass = document.getElementById("login-pass");
+      if (loginEmail) loginEmail.value = email;
+      if (loginPass) { loginPass.value = newPass; }
+      showAuthMessage("login-success", "Password updated! You can now sign in.", false);
+    } else {
+      showAuthMessage("forgot-error", data.detail || "Failed to reset password.");
+    }
+  } catch (err) {
+    showAuthMessage("forgot-error", "Network error: Failed to update password.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerText = prevText; }
   }
 }
 

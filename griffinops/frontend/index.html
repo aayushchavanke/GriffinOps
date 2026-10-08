@@ -27,38 +27,92 @@
       <h2>GriffinOps Enterprise</h2>
       <p>Predictive AI SRE Copilot · Supabase Authentication</p>
     </div>
-    <div class="auth-tabs">
+    <div class="auth-tabs" id="auth-tab-bar">
       <button class="auth-tab-btn active" id="btn-tab-login" onclick="switchAuthTab('login')">Sign In</button>
       <button class="auth-tab-btn" id="btn-tab-register" onclick="switchAuthTab('register')">Create Account</button>
     </div>
+
+    <!-- Sign In Panel -->
     <div class="auth-body" id="auth-form-login">
       <div class="form-group">
         <label>Email Address</label>
-        <input type="email" id="login-email" value="admin@griffinops.io" placeholder="developer@company.com">
+        <input type="email" id="login-email" placeholder="developer@company.com" autocomplete="email">
       </div>
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom:8px;">
         <label>Password</label>
-        <input type="password" id="login-pass" value="admin123" placeholder="••••••••">
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
       </div>
-      <div class="auth-error" id="login-error"></div>
-      <button class="btn btn-primary" style="width:100%; margin-bottom:8px;" onclick="handleLogin()">Sign In to Dashboard</button>
-      <button class="btn btn-secondary" style="width:100%; font-size:11px;" onclick="quickDemoLogin()">⚡ 1-Click Instant Access</button>
+      <div class="auth-row-between">
+        <label style="margin-bottom:0; cursor:pointer; font-size:12px; font-weight:normal; text-transform:none; letter-spacing:normal;">
+          <input type="checkbox" id="login-remember" checked style="width:auto; vertical-align:middle; margin-right:4px;"> Remember me
+        </label>
+        <a href="javascript:void(0)" class="auth-link" onclick="switchAuthTab('forgot')">Forgot password?</a>
+      </div>
+      <div class="auth-error" id="login-error" style="display:none;"></div>
+      <div class="auth-success" id="login-success" style="display:none;"></div>
+      <button class="btn btn-primary" id="btn-submit-login" style="width:100%; margin-bottom:8px;" onclick="handleLogin()">Sign In to Dashboard</button>
+      <button class="btn btn-secondary" style="width:100%; font-size:11.5px;" onclick="quickDemoLogin()">⚡ 1-Click Instant Access (Demo Admin)</button>
     </div>
+
+    <!-- Create Account Panel -->
     <div class="auth-body" id="auth-form-register" style="display:none;">
       <div class="form-group">
         <label>Full Name</label>
-        <input type="text" id="reg-name" placeholder="Alex Morgan">
+        <input type="text" id="reg-name" placeholder="Alex Morgan" autocomplete="name">
       </div>
       <div class="form-group">
         <label>Email Address</label>
-        <input type="email" id="reg-email" placeholder="alex@company.com">
+        <input type="email" id="reg-email" placeholder="alex@company.com" autocomplete="email">
       </div>
       <div class="form-group">
-        <label>Password</label>
-        <input type="password" id="reg-pass" placeholder="••••••••">
+        <label>Password <span style="font-weight:normal; text-transform:none; font-size:10px; color:var(--text-muted);">(Min 6 characters)</span></label>
+        <input type="password" id="reg-pass" placeholder="••••••••" autocomplete="new-password">
       </div>
-      <div class="auth-error" id="reg-error"></div>
-      <button class="btn btn-primary" style="width:100%;" onclick="handleRegister()">Create Account</button>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="reg-pass-confirm" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <div class="auth-error" id="reg-error" style="display:none;"></div>
+      <div class="auth-success" id="reg-success" style="display:none;"></div>
+      <button class="btn btn-primary" id="btn-submit-reg" style="width:100%; margin-bottom:10px;" onclick="handleRegister()">Create Account</button>
+      <div style="text-align:center; font-size:12px; color:var(--text-muted);">
+        Already have an account? <a href="javascript:void(0)" class="auth-link" onclick="switchAuthTab('login')">Sign In</a>
+      </div>
+    </div>
+
+    <!-- Forgot & Reset Password Panel -->
+    <div class="auth-body" id="auth-form-forgot" style="display:none;">
+      <div class="auth-info">
+        Enter your registered email address to receive password recovery instructions or a reset code.
+      </div>
+      <div class="form-group">
+        <label>Registered Email Address</label>
+        <input type="email" id="forgot-email" placeholder="alex@company.com" autocomplete="email">
+      </div>
+      <div class="auth-error" id="forgot-error" style="display:none;"></div>
+      <div class="auth-success" id="forgot-success" style="display:none;"></div>
+      <button class="btn btn-primary" id="btn-send-reset" style="width:100%; margin-bottom:12px;" onclick="handleForgotPassword()">Send Reset Instructions</button>
+
+      <!-- Reset Code Entry Section -->
+      <div id="forgot-reset-box" style="display:none; border-top:1px solid var(--glass-border-subtle); padding-top:14px; margin-top:8px;">
+        <div class="form-group">
+          <label>6-Digit Verification Code</label>
+          <input type="text" id="reset-code" placeholder="e.g. 849201" maxlength="6" style="letter-spacing:3px; font-weight:700; text-align:center; font-size:15px;">
+        </div>
+        <div class="form-group">
+          <label>New Password <span style="font-weight:normal; text-transform:none; font-size:10px; color:var(--text-muted);">(Min 6 characters)</span></label>
+          <input type="password" id="reset-new-pass" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label>Confirm New Password</label>
+          <input type="password" id="reset-confirm-pass" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <button class="btn btn-primary" id="btn-submit-reset" style="width:100%; margin-bottom:10px;" onclick="handleResetPassword()">Update Password &amp; Sign In</button>
+      </div>
+
+      <div style="text-align:center; margin-top:6px;">
+        <a href="javascript:void(0)" class="auth-link" onclick="switchAuthTab('login')">← Back to Sign In</a>
+      </div>
     </div>
   </div>
 </div>

@@ -185,6 +185,18 @@ class StorageManager:
                                 updated_at DOUBLE PRECISION
                             );
 
+                            CREATE TABLE IF NOT EXISTS auth_users (
+                                user_id TEXT PRIMARY KEY,
+                                email TEXT UNIQUE NOT NULL,
+                                name TEXT NOT NULL,
+                                password_hash TEXT NOT NULL,
+                                salt TEXT NOT NULL,
+                                role TEXT DEFAULT 'DEVELOPER',
+                                reset_code TEXT,
+                                reset_code_expires DOUBLE PRECISION,
+                                created_at DOUBLE PRECISION
+                            );
+
                             CREATE TABLE IF NOT EXISTS api_keys (
                                 api_key TEXT PRIMARY KEY,
                                 key_id TEXT UNIQUE NOT NULL,
@@ -253,6 +265,18 @@ class StorageManager:
                     brevo_api_key TEXT,
                     resend_api_key TEXT,
                     updated_at REAL
+                );
+
+                CREATE TABLE IF NOT EXISTS auth_users (
+                    user_id TEXT PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    name TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    salt TEXT NOT NULL,
+                    role TEXT DEFAULT 'DEVELOPER',
+                    reset_code TEXT,
+                    reset_code_expires REAL,
+                    created_at REAL
                 );
 
                 CREATE TABLE IF NOT EXISTS api_keys (
@@ -833,6 +857,127 @@ class StorageManager:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, log_tuple)
             conn.commit()
+
+    # --- PERSISTENT AUTH USERS ---
+    def get_auth_user(self, email: str) -> Optional[dict]:
+        email_clean = (email or "").strip().lower()
+        if not email_clean:
+            return None
+        with self._lock:
+            if self.is_postgres:
+                conn = self._get_pg_connection()
+                if conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            SELECT user_id, email, name, password_hash, salt, role, reset_code, reset_code_expires, created_at
+                            FROM auth_users
+                            WHERE LOWER(email) = %s
+                            LIMIT 1
+                        """, (email_clean,))
+                        row = cur.fetchone()
+                        return dict(row) if row else None
+
+            conn = self._get_sqlite_connection()
+            row = conn.execute("""
+                SELECT user_id, email, name, password_hash, salt, role, reset_code, reset_code_expires, created_at
+                FROM auth_users
+                WHERE LOWER(email) = ?
+                LIMIT 1
+            """, (email_clean,)).fetchone()
+            if not row:
+                return None
+            return {
+                "user_id": row[0],
+                "email": row[1],
+                "name": row[2],
+                "password_hash": row[3],
+                "salt": row[4],
+                "role": row[5],
+                "reset_code": row[6],
+                "reset_code_expires": row[7],
+                "created_at": row[8]
+            }
+
+    def create_auth_user(self, user_id: str, email: str, name: str, password_hash: str, salt: str, role: str = "DEVELOPER") -> dict:
+        email_clean = email.strip().lower()
+        now = time.time()
+        with self._lock:
+            if self.is_postgres:
+                conn = self._get_pg_connection()
+                if conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO auth_users (user_id, email, name, password_hash, salt, role, created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            ON CONFLICT (email) DO NOTHING
+                        """, (user_id, email_clean, name.strip(), password_hash, salt, role, now))
+                    return {"user_id": user_id, "email": email_clean, "name": name, "role": role}
+
+            conn = self._get_sqlite_connection()
+            conn.execute("""
+                INSERT OR IGNORE INTO auth_users (user_id, email, name, password_hash, salt, role, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, email_clean, name.strip(), password_hash, salt, role, now))
+            conn.commit()
+            return {"user_id": user_id, "email": email_clean, "name": name, "role": role}
+
+    def update_auth_user_password(self, email: str, password_hash: str, salt: str) -> bool:
+        email_clean = email.strip().lower()
+        with self._lock:
+            if self.is_postgres:
+                conn = self._get_pg_connection()
+                if conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            UPDATE auth_users
+                            SET password_hash = %s, salt = %s, reset_code = NULL, reset_code_expires = NULL
+                            WHERE LOWER(email) = %s
+                        """, (password_hash, salt, email_clean))
+                    return True
+
+            conn = self._get_sqlite_connection()
+            conn.execute("""
+                UPDATE auth_users
+                SET password_hash = ?, salt = ?, reset_code = NULL, reset_code_expires = NULL
+                WHERE LOWER(email) = ?
+            """, (password_hash, salt, email_clean))
+            conn.commit()
+            return True
+
+    def set_password_reset_code(self, email: str, reset_code: str, expires_at: float) -> bool:
+        email_clean = email.strip().lower()
+        with self._lock:
+            if self.is_postgres:
+                conn = self._get_pg_connection()
+                if conn:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            UPDATE auth_users
+                            SET reset_code = %s, reset_code_expires = %s
+                            WHERE LOWER(email) = %s
+                        """, (reset_code, expires_at, email_clean))
+                    return True
+
+            conn = self._get_sqlite_connection()
+            conn.execute("""
+                UPDATE auth_users
+                SET reset_code = ?, reset_code_expires = ?
+                WHERE LOWER(email) = ?
+            """, (reset_code, expires_at, email_clean))
+            conn.commit()
+            return True
+
+    def verify_and_consume_reset_code(self, email: str, reset_code: str) -> bool:
+        user = self.get_auth_user(email)
+        if not user:
+            return False
+        stored_code = user.get("reset_code")
+        expires_at = user.get("reset_code_expires") or 0.0
+        if not stored_code or stored_code != reset_code:
+            return False
+        if time.time() > expires_at:
+            return False
+        return True
 
 
 # Module-level singleton

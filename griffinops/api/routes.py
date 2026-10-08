@@ -36,6 +36,14 @@ class RegisterRequest(BaseModel):
     password: str
     name: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    reset_code: str
+    new_password: str
+
 class ProfileUpdateRequest(BaseModel):
     name: str
     email: str
@@ -157,6 +165,22 @@ def login(req: LoginRequest):
 def register(req: RegisterRequest):
     try:
         res = supabase_auth.register(req.email, req.password, req.name)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/auth/forgot-password")
+def forgot_password(req: ForgotPasswordRequest):
+    try:
+        res = supabase_auth.forgot_password(req.email)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/auth/reset-password")
+def reset_password(req: ResetPasswordRequest):
+    try:
+        res = supabase_auth.reset_password(req.email, req.reset_code, req.new_password)
         return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
