@@ -194,15 +194,6 @@ function switchAuthTab(tab) {
   }
 }
 
-async function quickDemoLogin() {
-  clearAuthFeedback();
-  const emailInput = document.getElementById("login-email");
-  const passInput = document.getElementById("login-pass");
-  if (emailInput) emailInput.value = "admin@griffinops.io";
-  if (passInput) passInput.value = "admin123";
-  await handleLogin();
-}
-
 async function handleLogin() {
   clearAuthFeedback();
   const emailInput = document.getElementById("login-email");
