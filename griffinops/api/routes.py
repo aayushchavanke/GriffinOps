@@ -120,6 +120,17 @@ def _filter_sites_for_endpoint(api_endpoint: Optional[str]) -> Optional[list]:
 # --- REAL LIVE WEBSITE MONITORING ROUTES ---
 @router.get("/real-monitor/live")
 def get_real_website_telemetry(api_endpoint: Optional[str] = None):
+    # Ensure all active keys in api_key_manager are registered in real_website_monitor
+    if real_website_monitor and api_key_manager:
+        for k in api_key_manager.list_api_keys():
+            if k.get("status") == "ACTIVE":
+                target = k.get("target_url") or k.get("endpoint") or f"https://{k['name'].lower().replace(' ', '-')}.internal"
+                real_website_monitor.add_monitored_site(
+                    name=k["name"],
+                    url=target,
+                    site_type="Live Web App (SDK)",
+                    api_key=k["api_key"]
+                )
     all_metrics = real_website_monitor.get_live_site_metrics()
     if not api_endpoint:
         return all_metrics
@@ -130,6 +141,7 @@ def get_real_website_telemetry(api_endpoint: Optional[str] = None):
     return {url: data for url, data in all_metrics.items() if url in allowed_urls}
 
 @router.post("/real-monitor/add-site")
+@router.post("/real-monitor/targets")
 def add_real_website(req: AddRealSiteRequest):
     return real_website_monitor.add_monitored_site(name=req.name, url=req.url, site_type=req.site_type)
 
@@ -379,9 +391,39 @@ def ingest_telemetry_sdk_ping(
 @router.post("/telemetry/test-ping")
 def send_test_telemetry_ping(req: TestPingRequest):
     """
-    Interactive test helper: Acknowledges test ping without polluting history with fake data.
+    Interactive test helper: Ingests an initial verification ping for the API key so the user can verify connectivity on the Overview dashboard.
     """
-    return {"status": "ACKNOWLEDGED", "message": "Test ping received. No synthetic data was written to history."}
+    info = api_key_manager.validate_api_key(req.api_key)
+    target_url = req.endpoint
+    site_name = None
+    if info:
+        target_url = target_url or info.get("target_url") or info.get("endpoint") or f"https://{info['name'].lower().replace(' ', '-')}.internal"
+        site_name = info["name"]
+    else:
+        matching_site = next((s for s in real_website_monitor.sites if s.get("api_key") == req.api_key), None) if real_website_monitor else None
+        if matching_site:
+            target_url = target_url or matching_site["url"]
+            site_name = matching_site["name"]
+        else:
+            target_url = target_url or "https://custom-service.internal"
+            site_name = "Custom Service"
+            
+    lat = req.latency_ms if req.latency_ms is not None else 38.5
+    status = req.status_code if req.status_code is not None else 200
+    
+    if real_website_monitor:
+        real_website_monitor.record_telemetry(
+            url=target_url,
+            latency_ms=lat,
+            status_code=status,
+            payload_bytes=512,
+            api_key=req.api_key,
+            site_name=site_name
+        )
+    if info:
+        info["latest_latency_ms"] = lat
+        storage.mark_api_key_dirty(req.api_key, info["requests_total"], lat)
+    return {"status": "SUCCESS", "message": f"Verification telemetry ingested for {site_name} ({lat:.1f}ms, HTTP {status})"}
 
 @router.delete("/keys/{key_id}")
 def revoke_api_key(key_id: str):

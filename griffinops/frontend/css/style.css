@@ -633,33 +633,54 @@ body {
 
 /* ── KPI Grid (Crisp Bento Boxes) ──────────────────────────────────────── */
 .kpi-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+  position: relative;
+  z-index: 2;
 }
 .kpi-card {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-top: 1.5px solid var(--glass-border-top);
   border-left: 1.5px solid var(--glass-border-left);
-  border-radius: 20px; padding: 18px 20px;
+  border-radius: 20px;
+  padding: 18px 20px;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow);
-  transition: transform .25s ease, background .25s ease, box-shadow .25s ease, border-color .25s ease;
+  transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1), background .25s ease, box-shadow .25s ease, border-color .25s ease;
   position: relative;
-  overflow: hidden;
+  z-index: 1;
+  isolation: isolate;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform, box-shadow;
   min-width: 0;
   min-height: 110px;
   display: flex;
   flex-direction: column;
 }
 .kpi-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--glass-shadow-hover);
+  z-index: 10;
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 14px 32px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(99, 102, 241, 0.35);
+  border-color: rgba(99, 102, 241, 0.45);
   background: var(--glass-bg-hover);
+}
+.kpi-card:hover .kpi-icon-pill {
+  transform: scale(1.08);
 }
 .kpi-card.danger {
   border-color: var(--pastel-rose-border);
   background: var(--pastel-rose-light);
+}
+.kpi-card.danger:hover {
+  z-index: 10;
+  transform: translateY(-4px) translateZ(0);
+  box-shadow: 0 14px 32px -4px rgba(244, 63, 94, 0.4), 0 0 0 1px rgba(244, 63, 94, 0.4);
+  border-color: var(--pastel-rose);
 }
 
 /* Sparkline bars — fixed height, pinned to card bottom */
@@ -693,6 +714,7 @@ body {
   border: 1px solid var(--pastel-indigo-border);
   display: flex; align-items: center; justify-content: center;
   font-size: 13px; font-weight: bold;
+  transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .kpi-value {
   font-family: var(--font-heading); font-size: 24px; font-weight: 800;
@@ -732,6 +754,9 @@ body {
   margin-bottom: 20px;
   transition: transform .25s ease, background .25s ease, box-shadow .25s ease, border-color .25s ease;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  z-index: 1;
 }
 .card:hover {
   background: var(--glass-bg-hover);
@@ -766,22 +791,28 @@ body {
 .table-wrap {
   overflow-x: auto;
   border-radius: 14px;
+  border: 1px solid var(--glass-border-subtle);
+  background: rgba(15, 23, 42, 0.2);
   min-width: 0;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
 }
 .data-table { width: 100%; border-collapse: collapse; font-size: clamp(11px, 0.8vw, 12px); min-width: 0; }
 .data-table th {
-  padding: clamp(8px, 0.8vw, 12px) clamp(10px, 1vw, 14px);
-  background: var(--glass-bg);
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-muted); font-weight: 700; text-align: left;
   border-bottom: 1px solid var(--glass-border-subtle);
-  white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;
+  white-space: nowrap; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .data-table td {
-  padding: clamp(8px, 0.8vw, 12px) clamp(10px, 1vw, 14px);
+  padding: 12px 14px;
   border-bottom: 1px solid var(--glass-border-subtle);
   color: var(--text-secondary);
+  vertical-align: middle;
+}
+.data-table tr {
+  transition: background .15s ease;
 }
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: var(--glass-bg-hover); color: var(--text-primary); }
@@ -879,6 +910,10 @@ body {
   padding: 9px 18px; border-radius: 10px; font-size: 12px; font-weight: 700;
   cursor: pointer; border: none; transition: all .2s ease; white-space: nowrap;
   font-family: var(--font); display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  position: relative;
+}
+.btn:hover {
+  z-index: 2;
 }
 .btn-primary {
   background: var(--pastel-indigo);

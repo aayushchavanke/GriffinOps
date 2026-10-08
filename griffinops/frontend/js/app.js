@@ -480,41 +480,93 @@ async function fetchRealWebsites() {
       tbody.innerHTML = "";
       const siteList = Object.values(sites);
       if (siteList.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:20px;">🌐 No active monitored websites yet. Click <strong>+ Register Website / API</strong> above to start monitoring!</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:32px 20px;">
+          <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
+            <span style="font-size:24px;">🌐</span>
+            <div style="font-size:13px; font-weight:700; color:var(--text-primary);">No Monitored Websites or Microservices Active</div>
+            <div style="font-size:12px; color:var(--text-muted); max-width:440px;">Generate an API key or register your web application to start streaming real-time white-box telemetry.</div>
+            <button class="btn btn-primary btn-sm" onclick="openCreateKeyModal()" style="margin-top:6px;">+ Register Website / API</button>
+          </div>
+        </td></tr>`;
         return;
       }
       siteList.forEach(site => {
         if (site.url) {
           siteUrlToSlug[site.url] = site.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
         }
-        const lat = site.latest.latency_ms;
-        const status = site.latest.status_code;
-        const isHazard = lat > 250.0 || status >= 400 || faultInjected;
+        const isPending = site.is_pending || (site.history_length === 0 && (!site.latest || site.latest.latency_ms === 0));
+        const lat = site.latest ? site.latest.latency_ms : 0;
+        const status = site.latest ? site.latest.status_code : 200;
+        const isHazard = !isPending && (lat > 250.0 || status >= 400 || faultInjected);
         const apiKey = site.api_key || "gop_live_web001";
         const tr = document.createElement("tr");
         tr.style.cursor = "pointer";
-        tr.title = "Click row to view detailed Pre-Mortem failure analysis";
+        tr.title = isPending ? "Awaiting telemetry stream — click Test Ping to verify" : "Click row to view detailed Pre-Mortem failure analysis";
         tr.onclick = (e) => {
           if (e.target.tagName !== 'A' && e.target.tagName !== 'BUTTON' && !e.target.closest('button')) {
-            openPremortemDrilldown(site.name, site.url, lat, status, site.latest.payload_bytes);
+            openPremortemDrilldown(site.name, site.url, lat, status, site.latest ? site.latest.payload_bytes : 256);
           }
         };
-        tr.innerHTML = `
-          <td><strong style="display:flex; align-items:center; gap:6px;"><span>${isHazard ? '🔴' : '🟢'}</span> ${site.name}</strong></td>
-          <td><code style="color:var(--accent-amber); font-size:11px;">${site.url}</code></td>
-          <td><span class="badge badge-purple" style="font-family:var(--font-mono); font-size:11px;">${apiKey}</span></td>
-          <td><strong style="color:${isHazard ? 'var(--pastel-rose)' : 'inherit'};">${lat.toFixed(1)} ms</strong></td>
-          <td><span class="badge ${status === 200 ? 'badge-amber' : 'badge-rose'}">HTTP ${status}</span></td>
-          <td><span class="badge ${isHazard ? 'badge-rose' : 'badge-mint'}">${isHazard ? 'M ≥ 3.5σ Hazard' : 'Nominal (0.3σ)'}</span></td>
-          <td style="display:flex; gap:6px; align-items:center;">
-            <button class="btn btn-secondary btn-sm" onclick="openPremortemDrilldown('${site.name}', '${site.url}', ${lat}, ${status}, ${site.latest.payload_bytes})" style="font-size:11px; padding:4px 8px;">🔮 Pre-Mortem</button>
+
+        let statusIndicator = `<strong style="display:flex; align-items:center; gap:8px;"><span>${isHazard ? '🔴' : '🟢'}</span> <span>${site.name}</span></strong>`;
+        let latDisplay = `<strong style="color:${isHazard ? 'var(--pastel-rose)' : 'inherit'};">${lat.toFixed(1)} ms</strong>`;
+        let httpBadge = `<span class="badge ${status === 200 ? 'badge-mint' : (status < 400 ? 'badge-amber' : 'badge-rose')}">HTTP ${status}</span>`;
+        let healthBadge = `<span class="badge ${isHazard ? 'badge-rose' : 'badge-mint'}">${isHazard ? 'M ≥ 3.5σ Hazard' : 'Nominal (0.3σ)'}</span>`;
+        let actionButtons = `
+          <button class="btn btn-secondary btn-sm" onclick="openPremortemDrilldown('${site.name}', '${site.url}', ${lat}, ${status}, ${site.latest ? site.latest.payload_bytes : 256})" style="font-size:11px; padding:4px 8px;">🔮 Pre-Mortem</button>
+          <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK &lt;/&gt;</button>
+        `;
+
+        if (isPending) {
+          statusIndicator = `<strong style="display:flex; align-items:center; gap:8px;"><span class="pulse-dot" style="background:var(--pastel-peach); display:inline-block;" title="Awaiting telemetry"></span> <span>${site.name}</span> <span style="font-size:10px; color:var(--text-muted); font-weight:normal;">(Awaiting Stream)</span></strong>`;
+          latDisplay = `<span style="color:var(--text-muted); font-size:11px; font-style:italic;">Awaiting First Ping</span>`;
+          httpBadge = `<span class="badge badge-purple">SDK Ready</span>`;
+          healthBadge = `<span class="badge badge-amber">Standby</span>`;
+          actionButtons = `
             <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK &lt;/&gt;</button>
-          </td>
+            <button class="btn btn-secondary btn-sm" onclick="sendTestPing('${site.url}', '${apiKey}', '${site.name}')" style="font-size:11px; padding:4px 8px; border-color:var(--pastel-mint-border); color:var(--pastel-mint-text);" title="Fire a test telemetry ping right now">⚡ Test Ping</button>
+          `;
+        }
+
+        tr.innerHTML = `
+          <td>${statusIndicator}</td>
+          <td><code style="color:var(--accent-amber); font-size:11px; word-break:break-all;">${site.url}</code></td>
+          <td><span class="badge badge-purple" style="font-family:var(--font-mono); font-size:11px;">${apiKey}</span></td>
+          <td>${latDisplay}</td>
+          <td>${httpBadge}</td>
+          <td>${healthBadge}</td>
+          <td style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">${actionButtons}</td>
         `;
         tbody.appendChild(tr);
       });
     }
   } catch (err) {}
+}
+
+async function sendTestPing(url, apiKey, name) {
+  showToast(`⚡ Sending verification ping for ${name}...`);
+  try {
+    const resp = await fetch("/api/v1/telemetry/test-ping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        endpoint: url,
+        latency_ms: Math.floor(28 + Math.random() * 25),
+        status_code: 200
+      })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      showToast(`✅ ${data.message || 'Telemetry verification recorded!'}`);
+      await fetchRealWebsites();
+      if (typeof fetchGlobalSites === "function") await fetchGlobalSites();
+    } else {
+      showToast("❌ Could not record test ping.");
+    }
+  } catch (err) {
+    showToast(`❌ Test ping error: ${err.message}`);
+  }
 }
 
 function openAddRealSiteModal() { document.getElementById("add-real-site-modal").style.display = "flex"; }

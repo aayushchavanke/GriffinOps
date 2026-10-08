@@ -17,9 +17,17 @@ class RealWebsiteMonitor:
             if s["url"] not in self.history:
                 self.history[s["url"]] = []
 
+    def _normalize_url(self, url: str) -> str:
+        url = url.strip()
+        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("tcp://") or url.startswith("file://")):
+            if url.startswith("/"):
+                url = f"https://api.internal{url}"
+            else:
+                url = f"https://{url}"
+        return url
+
     def add_monitored_site(self, name: str, url: str, site_type: str = "Live Web App (SDK)", api_key: Optional[str] = None) -> dict:
-        if not url.startswith("http://") and not url.startswith("https://") and not url.startswith("tcp://") and not url.startswith("file://"):
-            url = f"https://{url}"
+        url = self._normalize_url(url)
         
         # Check if site already exists
         for existing in self.sites:
@@ -49,6 +57,15 @@ class RealWebsiteMonitor:
         cpu_percent and memory_percent are used as-is when provided by the Python SDK (real psutil values).
         Falls back to formula/constant for backward compatibility with JS SDK and cURL clients.
         """
+        if api_key:
+            matching = next((s for s in self.sites if s.get("api_key") == api_key), None)
+            if matching:
+                url = matching["url"]
+            else:
+                url = self._normalize_url(url)
+        else:
+            url = self._normalize_url(url)
+
         now = time.time()
         error_rate = 0.0 if status_code < 400 else 1.0
         # Use real psutil value if provided; otherwise derive from latency (JS/cURL clients)
@@ -83,6 +100,7 @@ class RealWebsiteMonitor:
     def get_live_site_metrics(self) -> Dict[str, dict]:
         """
         Returns the latest recorded telemetry snapshot for all API-monitored websites and microservices.
+        Includes newly registered sites/APIs immediately with pending/standby state so they appear on the Overview tab.
         """
         results = {}
         for site in self.sites:
@@ -93,10 +111,28 @@ class RealWebsiteMonitor:
                 results[url] = {
                     "name": site["name"],
                     "url": url,
-                    "type": site["type"],
+                    "type": site.get("type", "Live Web App (SDK)"),
                     "api_key": site.get("api_key", "gop_live_default"),
                     "latest": latest,
-                    "history_length": len(hist)
+                    "history_length": len(hist),
+                    "is_pending": False
+                }
+            else:
+                results[url] = {
+                    "name": site["name"],
+                    "url": url,
+                    "type": site.get("type", "Live Web App (SDK)"),
+                    "api_key": site.get("api_key", "gop_live_default"),
+                    "latest": {
+                        "latency_ms": 0.0,
+                        "status_code": 200,
+                        "payload_bytes": 0,
+                        "error_rate": 0.0,
+                        "cpu_percent": 0.0,
+                        "memory_percent": 0.0
+                    },
+                    "history_length": 0,
+                    "is_pending": True
                 }
         return results
 
