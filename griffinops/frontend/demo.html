@@ -372,16 +372,25 @@
             return;
           }
 
+          const urlParams = new URLSearchParams(window.location.search);
+          const targetKey = urlParams.get("key");
+
+          let matchedKey = keys[0];
           keys.forEach((k, idx) => {
             const opt = document.createElement("option");
             opt.value = k.api_key;
             opt.innerText = `${k.name} (${k.api_key.substring(0, 16)}...)`;
-            if (idx === 0) opt.selected = true;
+            if (targetKey && k.api_key === targetKey) {
+              opt.selected = true;
+              matchedKey = k;
+            } else if (!targetKey && idx === 0) {
+              opt.selected = true;
+            }
             select.appendChild(opt);
           });
 
-          keyInput.value = keys[0].api_key;
-          logMessage(`✅ Connected to API Key for <strong>${keys[0].name}</strong>: <code>${keys[0].api_key}</code>`);
+          keyInput.value = matchedKey.api_key;
+          logMessage(`✅ Connected to API Key for <strong>${matchedKey.name}</strong>: <code>${matchedKey.api_key}</code>`);
         } else {
           if (statusTag) {
             statusTag.textContent = `HTTP ${res.status}`;

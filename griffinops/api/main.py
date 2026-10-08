@@ -91,6 +91,10 @@ def serve_dashboard():
     return {"message": "GriffinOps Enterprise API running. Open /api/v1/health or dashboard UI."}
 
 @app.get("/demo")
+@app.get("/demo.html")
+@app.get("/demo-site")
+@app.get("/demo_website.html")
+@app.get("/demo_site")
 def serve_demo():
     demo_file = os.path.join(frontend_dir, "demo.html")
     if os.path.exists(demo_file):

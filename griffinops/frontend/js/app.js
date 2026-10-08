@@ -513,8 +513,9 @@ async function fetchRealWebsites() {
         let httpBadge = `<span class="badge ${status === 200 ? 'badge-mint' : (status < 400 ? 'badge-amber' : 'badge-rose')}">HTTP ${status}</span>`;
         let healthBadge = `<span class="badge ${isHazard ? 'badge-rose' : 'badge-mint'}">${isHazard ? 'M ≥ 3.5σ Hazard' : 'Nominal (0.3σ)'}</span>`;
         let actionButtons = `
+          <a class="btn btn-primary btn-sm" href="/demo?key=${apiKey}" target="_blank" style="padding:4px 8px; font-size:11px; text-decoration:none;" title="Open live interactive demo web app">🚀 Demo Site ↗</a>
           <button class="btn btn-secondary btn-sm" onclick="openPremortemDrilldown('${site.name}', '${site.url}', ${lat}, ${status}, ${site.latest ? site.latest.payload_bytes : 256})" style="font-size:11px; padding:4px 8px;">🔮 Pre-Mortem</button>
-          <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK &lt;/&gt;</button>
+          <button class="btn btn-secondary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 SDK &lt;/&gt;</button>
         `;
 
         if (isPending) {
@@ -523,8 +524,9 @@ async function fetchRealWebsites() {
           httpBadge = `<span class="badge badge-purple">SDK Ready</span>`;
           healthBadge = `<span class="badge badge-amber">Standby</span>`;
           actionButtons = `
-            <button class="btn btn-primary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 Get SDK &lt;/&gt;</button>
-            <button class="btn btn-secondary btn-sm" onclick="sendTestPing('${site.url}', '${apiKey}', '${site.name}')" style="font-size:11px; padding:4px 8px; border-color:var(--pastel-mint-border); color:var(--pastel-mint-text);" title="Fire a test telemetry ping right now">⚡ Test Ping</button>
+            <a class="btn btn-primary btn-sm" href="/demo?key=${apiKey}" target="_blank" style="padding:4px 8px; font-size:11px; text-decoration:none;" title="Open live interactive demo web app">🚀 Test in Demo Site ↗</a>
+            <button class="btn btn-secondary btn-sm" onclick="sendTestPing('${site.url}', '${apiKey}', '${site.name}')" style="font-size:11px; padding:4px 8px; border-color:var(--pastel-mint-border); color:var(--pastel-mint-text);" title="Fire a test telemetry ping right now">⚡ Quick Ping</button>
+            <button class="btn btn-secondary btn-sm" onclick="openSDKEmbedModal('${apiKey}')" style="padding:4px 8px; font-size:11px;">📋 SDK &lt;/&gt;</button>
           `;
         }
 
@@ -1838,6 +1840,11 @@ async function submitCreateAPIKey() {
       const keyTag = document.getElementById("modal-generated-key");
       if (keyTag) keyTag.textContent = currentGeneratedKey;
 
+      const demoBtn1 = document.getElementById("modal-test-demo-btn");
+      if (demoBtn1) demoBtn1.href = `/demo?key=${currentGeneratedKey}`;
+      const demoBtn2 = document.getElementById("modal-test-demo-btn-2");
+      if (demoBtn2) demoBtn2.href = `/demo?key=${currentGeneratedKey}`;
+
       const htmlScript = `<!-- GriffinOps 1-Line JavaScript Telemetry SDK -->\n<script src="${window.location.origin}/static/js/griffinops-sdk.js" data-api-key="${currentGeneratedKey}"></script>`;
 
       const pythonReq = `import requests\nimport psutil  # pip install psutil — reads real CPU & memory from THIS machine\n\nheaders = {"X-GriffinOps-API-Key": "${currentGeneratedKey}"}\n\n# Capture real system metrics from the host running this script\ncpu = psutil.cpu_percent(interval=0.1)\nmem = psutil.virtual_memory().percent\n\nrequests.post("${window.location.origin}/api/v1/telemetry/ingest", headers=headers, json={\n    "latency_ms": 42.5,\n    "status_code": 200,\n    "cpu_percent": cpu,\n    "memory_percent": mem\n})`;
@@ -1999,6 +2006,8 @@ function openSDKEmbedModal(apiKey) {
   if (apiKey) activeSDKApiKey = apiKey;
   const modal = document.getElementById("sdk-embed-modal");
   if (modal) modal.style.display = "flex";
+  const sdkDemoBtn = document.getElementById("sdk-modal-test-demo-btn");
+  if (sdkDemoBtn) sdkDemoBtn.href = `/demo?key=${activeSDKApiKey}`;
   renderSnippets();
   switchSnippetTab("html");
 }
