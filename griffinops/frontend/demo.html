@@ -299,8 +299,8 @@
     </div>
 
     <div class="footer-row">
-      <span style="font-size: 12px; color: var(--muted);">Target URL: <code style="color:#a5b4fc;">demo_website.html</code></span>
-      <a class="dash-link" id="dashLink" href="http://localhost:8000" target="_blank">
+      <span style="font-size: 12px; color: var(--muted);">Target URL: <code id="targetUrlCode" style="color:#a5b4fc;">Live Web Target</code></span>
+      <a class="dash-link" id="dashLink" href="https://griffinops.up.railway.app" target="_blank">
         Open GriffinOps SRE Dashboard ➔
       </a>
     </div>
@@ -315,6 +315,10 @@
       if (saved) return saved.replace(/\/+$/, "");
       if (window.location.port === "8000" || window.location.pathname.startsWith("/static")) {
         return window.location.origin;
+      }
+      // If hosted on GitHub Pages or custom domain over HTTPS, default to the live Railway deployment
+      if (window.location.protocol === "https:" || window.location.hostname.includes("github.io")) {
+        return "https://griffinops.up.railway.app";
       }
       return "http://localhost:8000";
     }
@@ -473,8 +477,12 @@
       }
     }
 
-    // Load keys when page is ready
-    window.addEventListener("DOMContentLoaded", loadRegisteredAPIKeys);
+    // Load keys and set dynamic target url when page is ready
+    window.addEventListener("DOMContentLoaded", () => {
+      const targetCode = document.getElementById("targetUrlCode");
+      if (targetCode) targetCode.textContent = window.location.href;
+      loadRegisteredAPIKeys();
+    });
   </script>
 </body>
 </html>
