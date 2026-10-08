@@ -89,3 +89,10 @@ def serve_dashboard():
     if os.path.exists(index_file):
         return FileResponse(index_file)
     return {"message": "GriffinOps Enterprise API running. Open /api/v1/health or dashboard UI."}
+
+@app.get("/demo")
+def serve_demo():
+    demo_file = os.path.join(frontend_dir, "demo.html")
+    if os.path.exists(demo_file):
+        return FileResponse(demo_file)
+    return {"message": "Demo target page"}

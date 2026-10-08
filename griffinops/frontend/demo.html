@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample Web App — Monitored by GriffinOps</title>
+  
+  <style>
+    :root {
+      --bg: #0b101d;
+      --card-bg: rgba(255, 255, 255, 0.05);
+      --card-inner: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.12);
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, var(--bg) 70%);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 24px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 640px;
+      width: 100%;
+      box-shadow: 0 24px 48px rgba(0,0,0,0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 8px 0;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    p {
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+    .key-selector-box {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+    .key-selector-box label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #a5b4fc;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .key-input-row {
+      display: flex;
+      gap: 8px;
+    }
+    select, input[type="text"] {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border);
+      color: #f8fafc;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: monospace;
+      outline: none;
+    }
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 20px 0;
+    }
+    button.action-btn {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #fff;
+      padding: 13px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+    }
+    button.action-btn:hover {
+      background: rgba(99, 102, 241, 0.35);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    button.action-btn.normal {
+      border-left: 4px solid var(--emerald);
+    }
+    button.action-btn.warning {
+      border-left: 4px solid var(--amber);
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    button.action-btn.warning:hover {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: var(--amber);
+    }
+    button.action-btn.danger {
+      border-left: 4px solid var(--rose);
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.3);
+    }
+    button.action-btn.danger:hover {
+      background: rgba(244, 63, 94, 0.25);
+      border-color: var(--rose);
+    }
+    .tag {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.3);
+      color: #cbd5e1;
+    }
+    .log-box {
+      background: rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: #a7f3d0;
+      min-height: 90px;
+      max-height: 180px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+    .alert-banner {
+      background: rgba(244, 63, 94, 0.18);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      padding: 8px 12px;
+      border-radius: 8px;
+      margin-top: 6px;
+      color: #fecdd3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+    .preview-link {
+      background: #f43f5e;
+      color: #fff;
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 11px;
+      white-space: nowrap;
+      transition: opacity 0.2s;
+    }
+    .preview-link:hover {
+      opacity: 0.9;
+    }
+    .footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    a.dash-link {
+      color: #818cf8;
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    a.dash-link:hover {
+      color: #a5b4fc;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <div class="header-row">
+      <div class="badge">
+        <span class="badge-dot"></span>
+        <span>GriffinOps SRE SDK Connected</span>
+      </div>
+      <span style="font-size:12px; color:var(--muted);">Port: 8000</span>
+    </div>
+
+    <h1>🌐 Live Monitored Web Target</h1>
+    <p>
+      This application simulates real web traffic sending telemetry to GriffinOps. Connect to your hosted GriffinOps backend below, choose an API key, and trigger telemetry or pre-mortem outage alerts.
+    </p>
+
+    <!-- Backend Connection URL -->
+    <div class="key-selector-box" style="margin-bottom: 14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <label style="margin-bottom:0;">1. GriffinOps Backend Server URL</label>
+        <span id="backendStatusTag" class="badge" style="font-size:10px; padding:2px 8px;">Connecting...</span>
+      </div>
+      <div class="key-input-row">
+        <input type="text" id="serverUrlInput" placeholder="https://your-griffinops.onrender.com or http://localhost:8000" onchange="onServerUrlChange(this.value)">
+        <button type="button" onclick="reloadServerConnection()" style="background:rgba(99,102,241,0.25); border:1px solid rgba(99,102,241,0.5); color:#fff; border-radius:8px; padding:0 14px; cursor:pointer; font-size:12px; font-weight:600;">Connect</button>
+      </div>
+    </div>
+
+    <!-- API Key Selection -->
+    <div class="key-selector-box">
+      <label>2. Active GriffinOps API Key</label>
+      <div class="key-input-row">
+        <select id="apiKeySelect" onchange="onKeySelectChange()">
+          <option value="">Loading registered keys...</option>
+        </select>
+        <input type="text" id="apiKeyInput" placeholder="gop_live_..." style="max-width: 210px;">
+      </div>
+    </div>
+
+    <!-- Trigger Buttons -->
+    <div class="btn-group">
+      <button class="action-btn normal" onclick="triggerTelemetry(35, 200)">
+        <span>⚡ Send Normal Telemetry Ping</span>
+        <span class="tag">35 ms &bull; HTTP 200 OK</span>
+      </button>
+      <button class="action-btn warning" onclick="triggerTelemetry(680, 200)">
+        <span>🐢 Simulate High Latency (Slow Query Anomaly)</span>
+        <span class="tag">680 ms &bull; SEV-1 Hazard</span>
+      </button>
+      <button class="action-btn danger" onclick="triggerTelemetry(1250, 500)">
+        <span>💥 Simulate Server Error (Outage Spike)</span>
+        <span class="tag">1250 ms &bull; HTTP 500 Error</span>
+      </button>
+    </div>
+
+    <!-- Live Log -->
+    <div style="font-size: 11px; color: var(--muted); margin-bottom: 6px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+      Real-Time Telemetry &amp; Alert Ingestion Stream:
+    </div>
+    <div class="log-box" id="logBox">
+      [Ready] Initializing live connection to GriffinOps...
+    </div>
+
+    <div class="footer-row">
+      <span style="font-size: 12px; color: var(--muted);">Target URL: <code style="color:#a5b4fc;">demo_website.html</code></span>
+      <a class="dash-link" id="dashLink" href="http://localhost:8000" target="_blank">
+        Open GriffinOps SRE Dashboard ➔
+      </a>
+    </div>
+  </div>
+
+  <script>
+    function resolveInitialServerUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const queryServer = params.get("server");
+      if (queryServer) return queryServer.replace(/\/+$/, "");
+      const saved = localStorage.getItem("gop_demo_server_url");
+      if (saved) return saved.replace(/\/+$/, "");
+      if (window.location.port === "8000" || window.location.pathname.startsWith("/static")) {
+        return window.location.origin;
+      }
+      return "http://localhost:8000";
+    }
+
+    let serverUrl = resolveInitialServerUrl();
+
+    function logMessage(htmlContent) {
+      const box = document.getElementById("logBox");
+      const time = new Date().toLocaleTimeString();
+      box.innerHTML = `<div style="margin-bottom: 4px;">[${time}] ${htmlContent}</div>` + box.innerHTML;
+    }
+
+    function onServerUrlChange(val) {
+      if (!val) return;
+      serverUrl = val.trim().replace(/\/+$/, "");
+      localStorage.setItem("gop_demo_server_url", serverUrl);
+      reloadServerConnection();
+    }
+
+    function reloadServerConnection() {
+      const input = document.getElementById("serverUrlInput");
+      if (input && input.value.trim()) {
+        serverUrl = input.value.trim().replace(/\/+$/, "");
+        localStorage.setItem("gop_demo_server_url", serverUrl);
+      }
+      const dashLink = document.getElementById("dashLink");
+      if (dashLink) dashLink.href = serverUrl;
+      logMessage(`🔄 Switching backend server connection to: <code>${serverUrl}</code>...`);
+      loadRegisteredAPIKeys();
+    }
+
+    async function loadRegisteredAPIKeys() {
+      const statusTag = document.getElementById("backendStatusTag");
+      const input = document.getElementById("serverUrlInput");
+      const dashLink = document.getElementById("dashLink");
+      if (input) input.value = serverUrl;
+      if (dashLink) dashLink.href = serverUrl;
+
+      try {
+        const res = await fetch(`${serverUrl}/api/v1/keys`);
+        if (res.ok) {
+          if (statusTag) {
+            statusTag.textContent = "CONNECTED (Online)";
+            statusTag.style.borderColor = "var(--emerald)";
+            statusTag.style.color = "var(--emerald)";
+          }
+          const keys = await res.json();
+          const select = document.getElementById("apiKeySelect");
+          const keyInput = document.getElementById("apiKeyInput");
+          select.innerHTML = "";
+
+          if (keys.length === 0) {
+            select.innerHTML = '<option value="">No API keys found — create one in dashboard</option>';
+            logMessage(`ℹ️ Connected to GriffinOps at ${serverUrl}, but no API keys were found. Please generate one in the dashboard.`);
+            return;
+          }
+
+          keys.forEach((k, idx) => {
+            const opt = document.createElement("option");
+            opt.value = k.api_key;
+            opt.innerText = `${k.name} (${k.api_key.substring(0, 16)}...)`;
+            if (idx === 0) opt.selected = true;
+            select.appendChild(opt);
+          });
+
+          keyInput.value = keys[0].api_key;
+          logMessage(`✅ Connected to API Key for <strong>${keys[0].name}</strong>: <code>${keys[0].api_key}</code>`);
+        } else {
+          if (statusTag) {
+            statusTag.textContent = `HTTP ${res.status}`;
+            statusTag.style.borderColor = "var(--amber)";
+            statusTag.style.color = "var(--amber)";
+          }
+          logMessage(`⚠️ Connected to ${serverUrl}, but received HTTP ${res.status}.`);
+        }
+      } catch (err) {
+        if (statusTag) {
+          statusTag.textContent = "OFFLINE / Unreachable";
+          statusTag.style.borderColor = "var(--rose)";
+          statusTag.style.color = "var(--rose)";
+        }
+        logMessage(`⚠️ GriffinOps backend offline or unreachable at ${serverUrl}. If hosted separately, ensure CORS is enabled and paste your hosted URL above.`);
+      }
+    }
+
+    function onKeySelectChange() {
+      const select = document.getElementById("apiKeySelect");
+      const input = document.getElementById("apiKeyInput");
+      if (select.value) {
+        input.value = select.value;
+        logMessage(`🔑 Switched active API Key to: <code>${select.value}</code>`);
+      }
+    }
+
+    function getActiveKey() {
+      const input = document.getElementById("apiKeyInput");
+      return (input && input.value.trim()) ? input.value.trim() : "gop_live_default";
+    }
+
+    async function triggerTelemetry(latency, status) {
+      const key = getActiveKey();
+      logMessage(`📤 Streaming metric: Latency = <strong>${latency} ms</strong>, Status = <strong>HTTP ${status}</strong> (Key: <code>${key.substring(0, 14)}...</code>)`);
+
+      try {
+        const payload = {
+          api_key: key,
+          endpoint: window.location.href,
+          latency_ms: latency,
+          status_code: status,
+          payload_bytes: (latency > 200 || status >= 400) ? 4096 : 1420
+        };
+
+        const res = await fetch(`${serverUrl}/api/v1/telemetry/ingest`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-GriffinOps-API-Key': key
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          logMessage(`✅ Successfully ingested into GriffinOps! (Recorded: ${data.recorded_latency_ms} ms, Status: HTTP ${data.status_code || status})`);
+          
+          if (data.alert && data.alert.alert_dispatched) {
+            const previewUrl = data.alert.preview_url ? `${serverUrl}${data.alert.preview_url}` : null;
+            const previewBtn = previewUrl 
+              ? `<a href="${previewUrl}" target="_blank" class="preview-link">👁️ View Email Preview</a>` 
+              : '';
+
+            logMessage(`
+              <div class="alert-banner">
+                <div>
+                  <strong>🚨 PRE-MORTEM ALERT DISPATCHED!</strong><br/>
+                  <span>Report ID: <code>${data.alert.report_id || 'GO-RPT-ALERT'}</code> &bull; Severity: <strong style="color:#fda4af;">${data.alert.severity || 'SEV-1'}</strong> &bull; Recipient: ${data.alert.recipients ? data.alert.recipients.join(', ') : 'developer'}</span>
+                </div>
+                ${previewBtn}
+              </div>
+            `);
+          }
+        } else {
+          logMessage(`❌ Ingestion error (HTTP ${res.status}): ${data.detail || JSON.stringify(data)}`);
+        }
+      } catch (err) {
+        logMessage(`❌ Network error streaming telemetry: ${err.message}`);
+      }
+    }
+
+    // Load keys when page is ready
+    window.addEventListener("DOMContentLoaded", loadRegisteredAPIKeys);
+  </script>
+</body>
+</html>
