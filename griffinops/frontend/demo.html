@@ -69,7 +69,7 @@
     }
     .nav-links {
       display: flex;
-      gap: 20px;
+      gap: 16px;
       align-items: center;
     }
     .nav-item {
@@ -77,26 +77,23 @@
       text-decoration: none;
       font-size: 13.5px;
       font-weight: 600;
-      transition: color 0.2s;
-    }
-    .nav-item:hover, .nav-item.active {
-      color: #fff;
     }
     .telemetry-status-pill {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
+      gap: 8px;
       background: rgba(16, 185, 129, 0.12);
       border: 1px solid rgba(16, 185, 129, 0.35);
       color: #6ee7b7;
-      padding: 5px 12px;
+      padding: 6px 14px;
       border-radius: 20px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
+      transition: all 0.2s ease;
     }
     .pulse-dot {
-      width: 7px;
-      height: 7px;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: #10b981;
       box-shadow: 0 0 8px #10b981;
@@ -111,7 +108,7 @@
     main.container {
       max-width: 1100px;
       width: 100%;
-      margin: 36px auto;
+      margin: 32px auto;
       padding: 0 24px;
       flex: 1;
     }
@@ -119,7 +116,7 @@
     /* Hero Banner */
     .hero {
       text-align: center;
-      margin-bottom: 36px;
+      margin-bottom: 32px;
     }
     .hero-badge {
       display: inline-flex;
@@ -137,7 +134,7 @@
       margin-bottom: 12px;
     }
     .hero h1 {
-      font-size: 32px;
+      font-size: 30px;
       font-weight: 800;
       letter-spacing: -0.8px;
       margin: 0 0 10px 0;
@@ -145,8 +142,8 @@
     }
     .hero p {
       color: var(--muted);
-      font-size: 15px;
-      max-width: 620px;
+      font-size: 14.5px;
+      max-width: 640px;
       margin: 0 auto;
       line-height: 1.6;
     }
@@ -154,7 +151,7 @@
     /* Layout Grid */
     .grid {
       display: grid;
-      grid-template-columns: 1fr 380px;
+      grid-template-columns: 1fr 400px;
       gap: 24px;
     }
     @media (max-width: 900px) {
@@ -171,7 +168,7 @@
       -webkit-backdrop-filter: blur(16px);
     }
     .card-title {
-      font-size: 16px;
+      font-size: 15.5px;
       font-weight: 700;
       color: #fff;
       margin-top: 0;
@@ -184,8 +181,8 @@
     /* Product Grid */
     .products-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
       margin-bottom: 24px;
     }
     .product-box {
@@ -215,13 +212,13 @@
       text-transform: uppercase;
     }
     .product-name {
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 700;
       color: #fff;
       margin-bottom: 4px;
     }
     .product-desc {
-      font-size: 12px;
+      font-size: 11.5px;
       color: var(--muted);
       margin-bottom: 12px;
       line-height: 1.4;
@@ -233,7 +230,7 @@
       margin-top: auto;
     }
     .product-price {
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 800;
       color: #34d399;
     }
@@ -313,8 +310,8 @@
     .config-box {
       background: var(--card-inner);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
+      border-radius: 12px;
+      padding: 14px 16px;
       margin-bottom: 16px;
     }
     .config-box label {
@@ -324,14 +321,14 @@
       text-transform: uppercase;
       color: #a5b4fc;
       letter-spacing: 0.5px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     select, input[type="text"] {
       width: 100%;
       background: rgba(10, 15, 29, 0.85);
       border: 1px solid var(--border);
       color: #f8fafc;
-      padding: 8px 10px;
+      padding: 9px 12px;
       border-radius: 8px;
       font-size: 12.5px;
       font-family: 'JetBrains Mono', monospace;
@@ -339,6 +336,25 @@
     }
     select:focus, input[type="text"]:focus {
       border-color: var(--accent);
+    }
+
+    .btn-connect {
+      background: #4f46e5;
+      border: 1px solid #818cf8;
+      color: #ffffff;
+      padding: 9px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-connect:hover {
+      background: #4338ca;
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.5);
     }
 
     /* Stream Log Box */
@@ -369,7 +385,7 @@
 
     footer.site-footer {
       border-top: 1px solid var(--border);
-      padding: 20px 32px;
+      padding: 16px 32px;
       font-size: 12px;
       color: var(--muted);
       display: flex;
@@ -390,10 +406,10 @@
       <span>Apex Cloud Storefront</span>
     </div>
     <div class="nav-links">
-      <span class="nav-item active">Microservices Portal</span>
+      <span class="nav-item">Microservices Ingress</span>
       <div class="telemetry-status-pill" id="telemetryPill">
-        <span class="pulse-dot"></span>
-        <span id="telemetryStatusText">SRE Collector Active</span>
+        <span class="pulse-dot" id="pulseDot"></span>
+        <span id="telemetryStatusText">Checking SRE Agent...</span>
       </div>
     </div>
   </header>
@@ -477,19 +493,31 @@
             <span class="tag" id="activeKeyTag" style="font-size:10px;">gop_live_...</span>
           </div>
 
-          <!-- Endpoint Connection Config -->
+          <!-- Endpoint Connection Config with Prominent Connect Button -->
           <div class="config-box">
-            <label>GriffinOps Endpoint</label>
-            <input type="text" id="serverUrlInput" placeholder="https://griffinops.up.railway.app" onchange="onServerUrlChange(this.value)">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="margin-bottom:0;">GriffinOps Endpoint</label>
+              <span id="endpointStatusBadge" class="tag" style="background:rgba(245,158,11,0.2); color:#fcd34d;">Checking...</span>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="serverUrlInput" placeholder="https://griffinops.up.railway.app" style="flex:1;">
+              <button type="button" class="btn-connect" onclick="testAndConnectServer()" title="Test server connection and load API keys">
+                🔌 Connect
+              </button>
+            </div>
           </div>
 
+          <!-- API Key Selection -->
           <div class="config-box">
-            <label>API Key</label>
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="margin-bottom:0;">Active API Key</label>
+              <span id="keyStatusBadge" style="font-size:11px; color:#10b981; font-weight:700;">ACTIVE</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
               <select id="apiKeySelect" onchange="onKeySelectChange()">
-                <option value="">Detecting registered keys...</option>
+                <option value="">Fetching active keys...</option>
               </select>
-              <input type="text" id="apiKeyInput" placeholder="gop_live_..." style="max-width:130px;">
+              <input type="text" id="apiKeyInput" placeholder="gop_live_..." onchange="onManualKeyChange(this.value)">
             </div>
           </div>
 
@@ -498,7 +526,7 @@
             Live Ingest Stream:
           </label>
           <div class="stream-box" id="logBox">
-            <div class="log-line"><span class="log-time">[Init]</span> Connecting to GriffinOps SRE backend...</div>
+            <div class="log-line"><span class="log-time">[Init]</span> Initializing SRE connection...</div>
           </div>
         </div>
       </div>
@@ -509,7 +537,7 @@
   <!-- Footer -->
   <footer class="site-footer">
     <span>Apex Cloud Infrastructure &bull; Monitored by GriffinOps Autonomous SRE</span>
-    <span style="font-family:'JetBrains Mono', monospace; font-size:11px; color:#a5b4fc;" id="telemetryEndpointLabel">Endpoint: Active</span>
+    <span style="font-family:'JetBrains Mono', monospace; font-size:11px; color:#a5b4fc;" id="telemetryEndpointLabel">Endpoint: Initializing</span>
   </footer>
 
   <script>
@@ -549,38 +577,113 @@
       box.innerHTML = html + box.innerHTML;
     }
 
-    function onServerUrlChange(val) {
-      if (!val) return;
-      serverUrl = val.trim().replace(/\/+$/, "");
-      localStorage.setItem("gop_demo_server_url", serverUrl);
-      reloadConnection();
+    // 2. Explicit Connect Button Handler with Live Ping & Feedback
+    async function testAndConnectServer() {
+      const input = document.getElementById("serverUrlInput");
+      const badge = document.getElementById("endpointStatusBadge");
+      const pill = document.getElementById("telemetryPill");
+      const pillText = document.getElementById("telemetryStatusText");
+      const pulseDot = document.getElementById("pulseDot");
+      const lbl = document.getElementById("telemetryEndpointLabel");
+
+      if (input && input.value.trim()) {
+        serverUrl = input.value.trim().replace(/\/+$/, "");
+        localStorage.setItem("gop_demo_server_url", serverUrl);
+      }
+
+      logMessage(`Connecting to GriffinOps at <code>${serverUrl}</code>...`, "ok");
+      if (badge) {
+        badge.textContent = "Connecting...";
+        badge.style.background = "rgba(245, 158, 11, 0.2)";
+        badge.style.color = "#fcd34d";
+      }
+
+      try {
+        const tStart = performance.now();
+        const resp = await fetch(`${serverUrl}/api/v1/health`, { method: "GET" });
+        const pingMs = Math.round(performance.now() - tStart);
+
+        if (resp.ok) {
+          if (badge) {
+            badge.textContent = `🟢 Connected (${pingMs}ms)`;
+            badge.style.background = "rgba(16, 185, 129, 0.2)";
+            badge.style.color = "#6ee7b7";
+          }
+          if (pill) {
+            pill.style.background = "rgba(16, 185, 129, 0.15)";
+            pill.style.borderColor = "rgba(16, 185, 129, 0.4)";
+          }
+          if (pulseDot) {
+            pulseDot.style.background = "#10b981";
+            pulseDot.style.boxShadow = "0 0 8px #10b981";
+          }
+          if (pillText) pillText.textContent = `SRE Connected (${pingMs}ms)`;
+          if (lbl) lbl.textContent = `Endpoint: ${serverUrl} (Online)`;
+          logMessage(`✅ Successfully connected to GriffinOps API (${pingMs}ms &bull; HTTP 200 OK)`, "ok");
+
+          await loadRegisteredAPIKeys();
+          return true;
+        } else {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+      } catch (err) {
+        if (badge) {
+          badge.textContent = "🔴 Connection Failed";
+          badge.style.background = "rgba(244, 63, 94, 0.2)";
+          badge.style.color = "#fca5a5";
+        }
+        if (pill) {
+          pill.style.background = "rgba(244, 63, 94, 0.15)";
+          pill.style.borderColor = "rgba(244, 63, 94, 0.4)";
+        }
+        if (pulseDot) {
+          pulseDot.style.background = "#f43f5e";
+          pulseDot.style.boxShadow = "0 0 8px #f43f5e";
+        }
+        if (pillText) pillText.textContent = "Disconnected (Click Connect)";
+        if (lbl) lbl.textContent = `Endpoint: ${serverUrl} (Unreachable)`;
+        logMessage(`❌ Connection failed to ${serverUrl}: ${err.message}. Click 'Connect' to retry.`, "err");
+        return false;
+      }
     }
 
     function onKeySelectChange() {
       const sel = document.getElementById("apiKeySelect");
       const inp = document.getElementById("apiKeyInput");
+      const tag = document.getElementById("activeKeyTag");
+      const keyStatusBadge = document.getElementById("keyStatusBadge");
+
       if (sel && sel.value) {
         inp.value = sel.value;
-        const tag = document.getElementById("activeKeyTag");
         if (tag) tag.textContent = sel.value;
+
+        const isRevoked = sel.options[sel.selectedIndex]?.text?.includes("REVOKED");
+        if (keyStatusBadge) {
+          if (isRevoked) {
+            keyStatusBadge.textContent = "REVOKED ❌";
+            keyStatusBadge.style.color = "#f87171";
+            logMessage(`⚠️ Warning: Selected key <code>${sel.value}</code> is revoked. Requests will fail with 401. Select an ACTIVE key.`, "warn");
+          } else {
+            keyStatusBadge.textContent = "ACTIVE ✓";
+            keyStatusBadge.style.color = "#10b981";
+            logMessage(`Switched to active API key: <code>${sel.value}</code>`, "ok");
+          }
+        }
       }
     }
 
-    function reloadConnection() {
-      const input = document.getElementById("serverUrlInput");
-      if (input) input.value = serverUrl;
-      const lbl = document.getElementById("telemetryEndpointLabel");
-      if (lbl) lbl.textContent = `Endpoint: ${serverUrl}`;
-      logMessage(`Switched ingestion server to: ${serverUrl}`);
-      loadRegisteredAPIKeys();
+    function onManualKeyChange(val) {
+      if (!val) return;
+      const tag = document.getElementById("activeKeyTag");
+      if (tag) tag.textContent = val.trim();
+      logMessage(`Set manual API key: <code>${val.trim()}</code>`, "ok");
     }
 
     async function loadRegisteredAPIKeys() {
-      const pill = document.getElementById("telemetryPill");
-      const statusText = document.getElementById("telemetryStatusText");
       const sel = document.getElementById("apiKeySelect");
       const inp = document.getElementById("apiKeyInput");
       const keyTag = document.getElementById("activeKeyTag");
+      const keyStatusBadge = document.getElementById("keyStatusBadge");
 
       try {
         const resp = await fetch(`${serverUrl}/api/v1/keys`);
@@ -588,39 +691,58 @@
           const keys = await resp.json();
           if (Array.isArray(keys) && keys.length > 0) {
             sel.innerHTML = "";
-            keys.forEach(k => {
+
+            // Sort: ACTIVE keys first, REVOKED keys at the bottom
+            const activeKeys = keys.filter(k => k.status === "ACTIVE");
+            const revokedKeys = keys.filter(k => k.status !== "ACTIVE");
+            const sortedKeys = [...activeKeys, ...revokedKeys];
+
+            sortedKeys.forEach(k => {
               const opt = document.createElement("option");
               opt.value = k.api_key;
-              opt.textContent = `${k.name} (${k.api_key.substring(0, 14)}…)`;
+              const isRev = k.status === "REVOKED";
+              opt.textContent = `${k.name} (${k.api_key.substring(0, 14)}…) ${isRev ? '[REVOKED ❌]' : '✓ ACTIVE'}`;
+              if (isRev) {
+                opt.style.color = "#f87171";
+              }
               sel.appendChild(opt);
             });
 
-            // Check if key is provided via query param ?key=
+            // Prioritize: query parameter ?key=, or the first ACTIVE key!
             const params = new URLSearchParams(window.location.search);
             const queryKey = params.get("key");
-            const matchedKey = keys.find(k => k.api_key === queryKey);
+            let picked = sortedKeys.find(k => k.api_key === queryKey);
+            if (!picked) picked = activeKeys[0] || sortedKeys[0];
 
-            const activeKey = matchedKey ? matchedKey.api_key : keys[0].api_key;
-            sel.value = activeKey;
-            inp.value = activeKey;
-            if (keyTag) keyTag.textContent = activeKey;
+            if (picked) {
+              sel.value = picked.api_key;
+              inp.value = picked.api_key;
+              if (keyTag) keyTag.textContent = picked.api_key;
 
-            statusText.innerText = "GriffinOps Connected";
-            logMessage(`Authenticated with active key: ${activeKey}`, "ok");
+              const isRev = picked.status === "REVOKED";
+              if (keyStatusBadge) {
+                keyStatusBadge.textContent = isRev ? "REVOKED ❌" : "ACTIVE ✓";
+                keyStatusBadge.style.color = isRev ? "#f87171" : "#10b981";
+              }
+
+              if (isRev) {
+                logMessage(`⚠️ Note: Initial key <code>${picked.api_key}</code> is marked REVOKED. Please choose an ACTIVE key.`, "warn");
+              } else {
+                logMessage(`🔑 Loaded active API key: <strong>${picked.name}</strong> (<code>${picked.api_key}</code>)`, "ok");
+              }
+            }
             return;
           }
         }
       } catch (err) {
-        // Handled below
+        // Fallback
       }
 
-      // Fallback default key
+      // Default fallback
       const fallbackKey = "gop_live_demo01";
-      sel.innerHTML = `<option value="${fallbackKey}">Default Demo Key (${fallbackKey})</option>`;
+      sel.innerHTML = `<option value="${fallbackKey}">Default Key (${fallbackKey})</option>`;
       inp.value = fallbackKey;
       if (keyTag) keyTag.textContent = fallbackKey;
-      statusText.innerText = "Connected (Default Key)";
-      logMessage(`Connected with default API key: ${fallbackKey}`, "ok");
     }
 
     async function executeTransaction(actionName, latencyMs, statusCode) {
@@ -654,6 +776,8 @@
           } else {
             logMessage(`✓ Telemetry ingested successfully: ${latencyMs}ms &bull; HTTP ${statusCode} OK`, "ok");
           }
+        } else if (resp.status === 401) {
+          logMessage(`❌ HTTP 401 Unauthorized: The API key <code>${activeKey}</code> is invalid or REVOKED. Please select an ACTIVE key in the dropdown above or generate a new key in GriffinOps.`, "err");
         } else {
           const errData = await resp.text();
           logMessage(`Ingestion response: HTTP ${resp.status} - ${errData}`, "err");
@@ -669,12 +793,14 @@
       if (input) input.value = serverUrl;
       const lbl = document.getElementById("telemetryEndpointLabel");
       if (lbl) lbl.textContent = `Endpoint: ${serverUrl}`;
-      loadRegisteredAPIKeys();
 
-      // Send initial page load telemetry
+      // Automatically test connection and load keys
+      testAndConnectServer();
+
+      // Send initial page load telemetry ping after brief delay
       setTimeout(() => {
         executeTransaction("Initial Page View", 28, 200);
-      }, 1000);
+      }, 1500);
     });
   </script>
 </body>

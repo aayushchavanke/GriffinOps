@@ -2166,38 +2166,42 @@ function renderTopologySVG(data) {
     }
   });
 
-  // Default fallback if tiers are empty
-  if (tier1.length === 0 && nodesList.length > 0) tier1.push(nodesList[0]);
-  if (tier2.length === 0 && nodesList.length > 1) tier2.push(nodesList[1]);
-  if (tier3.length === 0 && nodesList.length > 2) tier3.push(nodesList[2]);
+  var hasExplicitTiers = (tier1.length > 0 || tier2.length > 0 || tier4.length > 0) && (data.edges && data.edges.length > 0);
 
-  var maxTierCount = Math.max(tier1.length, tier2.length, tier3.length, tier4.length, 3);
-  height = Math.max(340, maxTierCount * 75);
-  svg.setAttribute("height", height);
+  if (hasExplicitTiers) {
+    var maxTierCount = Math.max(tier1.length, tier2.length, tier3.length, tier4.length, 2);
+    height = Math.max(340, maxTierCount * 75);
+    svg.setAttribute("height", height);
 
-  function layoutTier(tierNodes, xPos) {
-    var count = tierNodes.length;
-    if (count === 1) {
-      coords[tierNodes[0].id] = { x: xPos, y: height * 0.5 };
-    } else {
-      var step = (height - 110) / Math.max(1, count - 1);
-      tierNodes.forEach(function(n, idx) {
-        coords[n.id] = { x: xPos, y: 55 + idx * step };
-      });
+    function layoutTier(tierNodes, xPos) {
+      var count = tierNodes.length;
+      if (count === 1) {
+        coords[tierNodes[0].id] = { x: xPos, y: height * 0.5 };
+      } else if (count > 1) {
+        var step = (height - 110) / Math.max(1, count - 1);
+        tierNodes.forEach(function(n, idx) {
+          coords[n.id] = { x: xPos, y: 55 + idx * step };
+        });
+      }
     }
+
+    layoutTier(tier1, width * 0.15);
+    layoutTier(tier2, width * 0.40);
+    layoutTier(tier3, width * 0.65);
+    layoutTier(tier4, width * 0.88);
+  } else {
+    // Symmetrical peer layout for independent monitored sites & APIs
+    height = 320;
+    svg.setAttribute("height", height);
+    var totalNodes = nodesList.length;
+    var xStep = width / (totalNodes + 1);
+    nodesList.forEach(function(n, idx) {
+      coords[n.id] = {
+        x: xStep * (idx + 1),
+        y: height * 0.5
+      };
+    });
   }
-
-  layoutTier(tier1, width * 0.12);
-  layoutTier(tier2, width * 0.35);
-  layoutTier(tier3, width * 0.62);
-  layoutTier(tier4, width * 0.88);
-
-  // Position any remaining nodes that didn't get mapped
-  nodesList.forEach(function(n) {
-    if (!coords[n.id]) {
-      coords[n.id] = { x: width * 0.62, y: height * 0.5 };
-    }
-  });
 
   // Determine node status
   var nodeStatus = {};

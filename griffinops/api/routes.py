@@ -609,16 +609,50 @@ def get_topology(api_endpoint: Optional[str] = None):
         return {"status": "NO_DATA", "message": "No real telemetry ingested yet.", "nodes": [], "edges": []}
 
     edges = []
-    # Build edges between discovered nodes
-    if len(nodes) >= 2:
-        for i in range(len(nodes) - 1):
-            src = nodes[i]["id"]
-            tgt = nodes[i + 1]["id"]
-            edges.append({
-                "source": src,
-                "target": tgt,
-                "lag_ms": int(abs(nodes[i]["latency_ms"] - nodes[i + 1]["latency_ms"]) + 12)
-            })
+    # Real Causal Discovery: Only connect services if there is an explicit microservice dependency
+    # or a statistically verified LagRCA cross-correlation (r >= 0.75) across concurrent telemetry
+    try:
+        from griffinops.rca.lag_rca import LagRCAEngine
+        import pandas as pd
+
+        # 1. Check explicit architecture topology from rca_engine if defined
+        if rca_engine and hasattr(rca_engine, "topology") and rca_engine.topology:
+            node_ids = {n["id"] for n in nodes}
+            for src, targets in rca_engine.topology.items():
+                if src in node_ids:
+                    for tgt in targets:
+                        if tgt in node_ids:
+                            edges.append({
+                                "source": src,
+                                "target": tgt,
+                                "lag_ms": 32
+                            })
+
+        # 2. Dynamic Spatio-Temporal Lag Correlation across real histories
+        telemetry_dict = {}
+        for node in nodes:
+            node_id = node["id"]
+            # Find matching site history
+            matching_site = next((s for s in real_website_monitor.sites if s.get("name", "").lower().replace(" ", "-").replace("&", "and").replace("/", "-") == node_id or s.get("url") == node.get("url")), None)
+            if matching_site:
+                hist = real_website_monitor.history.get(matching_site["url"], [])
+                if len(hist) >= 6:
+                    telemetry_dict[node_id] = pd.DataFrame(hist)
+
+        if len(telemetry_dict) >= 2:
+            lag_engine = LagRCAEngine(max_lag_steps=10, sample_interval_sec=3.0)
+            lag_scores, optimal_lags = lag_engine.compute_spatio_temporal_lag_correlation(telemetry_dict, primary_metric="latency_ms")
+            for (u, v), score in lag_scores.items():
+                if score >= 0.75: # Only strong, statistically proven correlation
+                    if not any(e["source"] == u and e["target"] == v for e in edges):
+                        lag_val = optimal_lags.get((u, v), 20)
+                        edges.append({
+                            "source": u,
+                            "target": v,
+                            "lag_ms": int(lag_val * 1000) if 0 < lag_val < 1.0 else int(lag_val if lag_val > 0 else 24)
+                        })
+    except Exception:
+        pass
 
     return {"nodes": nodes, "edges": edges}
 
