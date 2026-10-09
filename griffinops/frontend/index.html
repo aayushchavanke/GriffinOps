@@ -537,8 +537,70 @@
           </section>
         </div>
 
+        <!-- Email Delivery Provider & SMTP Config -->
+        <section class="card" style="margin-top:20px;">
+          <div class="card-header">
+            <h2>Email Delivery Engine (SMTP / Brevo / Resend)</h2>
+            <span class="badge badge-amber" id="email-active-provider-badge">Checking Provider...</span>
+          </div>
+          <p style="color:var(--text-muted);font-size:12px;margin-bottom:16px;line-height:1.6;">
+            GriffinOps delivers autonomous failure pre-mortems via Gmail SMTP, Brevo, or Resend API. If no credentials are configured, alerts are safely stored in the local server preview folder.
+          </p>
+
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:16px;">
+            <!-- Option A: Standard / Gmail SMTP -->
+            <div style="background:var(--card-inner);border:1px solid var(--border);border-radius:12px;padding:16px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                <strong style="font-size:13px;color:var(--text-primary);">Option A: Gmail / Custom SMTP</strong>
+                <span class="badge badge-mint" style="font-size:10px;">Free 500/day</span>
+              </div>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label>SMTP Host</label>
+                <input type="text" id="cfg-smtp-host" placeholder="smtp.gmail.com" value="smtp.gmail.com">
+              </div>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label>SMTP Port</label>
+                <input type="number" id="cfg-smtp-port" placeholder="587" value="587">
+              </div>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label>SMTP Username / Sender Email</label>
+                <input type="email" id="cfg-smtp-user" placeholder="you@gmail.com">
+              </div>
+              <div class="form-group" style="margin-bottom:6px;">
+                <label>SMTP Password / Gmail 16-Char App Password</label>
+                <input type="password" id="cfg-smtp-pass" placeholder="••••••••••••••••">
+                <small style="color:var(--text-muted);font-size:10px;display:block;margin-top:3px;">For Gmail: Use Google Account &rarr; Security &rarr; App Passwords (16 characters).</small>
+              </div>
+            </div>
+
+            <!-- Option B: Resend / Brevo API Keys -->
+            <div style="background:var(--card-inner);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;">
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+                  <strong style="font-size:13px;color:var(--text-primary);">Option B: Cloud API Keys (Zero Config)</strong>
+                  <span class="badge badge-purple" style="font-size:10px;">Instant Delivery</span>
+                </div>
+                <div class="form-group" style="margin-bottom:12px;">
+                  <label>Resend API Key (re_...)</label>
+                  <input type="password" id="cfg-resend-key" placeholder="re_123456789...">
+                  <small style="color:var(--text-muted);font-size:10px;display:block;margin-top:3px;">Free 3,000 emails/month from resend.com. Sends via onboarding@resend.dev without custom domain.</small>
+                </div>
+                <div class="form-group" style="margin-bottom:6px;">
+                  <label>Brevo (Sendinblue) API Key</label>
+                  <input type="password" id="cfg-brevo-key" placeholder="xkeysib-...">
+                  <small style="color:var(--text-muted);font-size:10px;display:block;margin-top:3px;">Free 300 emails/day from brevo.com.</small>
+                </div>
+              </div>
+
+              <div style="margin-top:16px;">
+                <button class="btn btn-primary" style="width:100%;" onclick="saveEmailServerSettings()">💾 Save Email Server Configuration</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Watchdog History -->
-        <section class="card">
+        <section class="card" style="margin-top:20px;">
           <div class="card-header">
             <h2>Alert Dispatch Log</h2>
             <span class="badge badge-platinum">Background Daemon History</span>

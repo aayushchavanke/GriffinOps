@@ -357,20 +357,21 @@ class DualNotifier:
             try:
                 brevo_url = "https://api.brevo.com/v3/smtp/email"
                 headers = {"api-key": self.brevo_api_key, "Content-Type": "application/json"}
+                sender_email = self.smtp_user if (self.smtp_user and "@" in self.smtp_user and not self.smtp_user.endswith("@griffinops.io")) else (recipient_email if "@" in recipient_email else "alerts@griffinops.io")
                 payload = {
-                    "sender": {"name": "GriffinOps Autonomous AI SRE", "email": "alerts@griffinops.io"},
+                    "sender": {"name": "GriffinOps Autonomous AI SRE", "email": sender_email},
                     "to": [{"email": recipient_email}],
                     "subject": subject,
                     "htmlContent": html_body
                 }
-                resp = requests.post(brevo_url, json=payload, headers=headers, timeout=5.0)
+                resp = requests.post(brevo_url, json=payload, headers=headers, timeout=6.0)
                 if resp.status_code in [200, 201]:
                     return {
                         "status": "DELIVERED",
                         "recipient": recipient_email,
                         "provider": "BREVO_API",
-                        "sender": "GriffinOps AI SRE Copilot <alerts@griffinops.io>",
-                        "message": f"Email successfully delivered to {recipient_email} from alerts@griffinops.io via Brevo API!",
+                        "sender": f"GriffinOps AI SRE Copilot <{sender_email}>",
+                        "message": f"Email successfully delivered to {recipient_email} via Brevo API!",
                         "preview_path": filepath
                     }
                 else:
@@ -383,20 +384,22 @@ class DualNotifier:
             try:
                 resend_url = "https://api.resend.com/emails"
                 headers = {"Authorization": f"Bearer {self.resend_api_key}", "Content-Type": "application/json"}
+                # Resend free tier sends from onboarding@resend.dev without requiring custom domain DNS verification
+                sender_email = "onboarding@resend.dev" if (not self.smtp_user or "@griffinops.io" in self.smtp_user) else self.smtp_user
                 payload = {
-                    "from": "GriffinOps AI SRE <alerts@griffinops.io>",
+                    "from": f"GriffinOps AI SRE <{sender_email}>",
                     "to": [recipient_email],
                     "subject": subject,
                     "html": html_body
                 }
-                resp = requests.post(resend_url, json=payload, headers=headers, timeout=5.0)
+                resp = requests.post(resend_url, json=payload, headers=headers, timeout=6.0)
                 if resp.status_code in [200, 201]:
                     return {
                         "status": "DELIVERED",
                         "recipient": recipient_email,
                         "provider": "RESEND_API",
-                        "sender": "GriffinOps AI SRE Copilot <alerts@griffinops.io>",
-                        "message": f"Email successfully delivered to {recipient_email} from alerts@griffinops.io via Resend API!",
+                        "sender": f"GriffinOps AI SRE Copilot <{sender_email}>",
+                        "message": f"Email successfully delivered to {recipient_email} via Resend API!",
                         "preview_path": filepath
                     }
                 else:
@@ -413,15 +416,21 @@ class DualNotifier:
                 msg["To"] = recipient_email
                 msg.attach(MIMEText(html_body, "html"))
                 
-                if self.smtp_port == 465:
-                    with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=8.0) as server:
+                port = int(self.smtp_port) if self.smtp_port else 587
+                if port == 465:
+                    with smtplib.SMTP_SSL(self.smtp_host, port, timeout=10.0) as server:
                         server.login(self.smtp_user, self.smtp_pass)
-                        server.sendmail(self.smtp_user, recipient_email, msg.as_string())
+                        server.sendmail(self.smtp_user, [recipient_email], msg.as_string())
                 else:
-                    with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=8.0) as server:
-                        server.starttls()
+                    with smtplib.SMTP(self.smtp_host, port, timeout=10.0) as server:
+                        server.ehlo()
+                        try:
+                            server.starttls()
+                            server.ehlo()
+                        except Exception:
+                            pass
                         server.login(self.smtp_user, self.smtp_pass)
-                        server.sendmail(self.smtp_user, recipient_email, msg.as_string())
+                        server.sendmail(self.smtp_user, [recipient_email], msg.as_string())
                     
                 return {
                     "status": "DELIVERED",
@@ -431,16 +440,28 @@ class DualNotifier:
                     "message": f"Email successfully delivered to {recipient_email} from GriffinOps AI SRE Copilot!",
                     "preview_path": filepath
                 }
+            except smtplib.SMTPAuthenticationError as e:
+                errors.append(f"SMTP Authentication Failed for {self.smtp_user}: {e.smtp_error.decode() if hasattr(e.smtp_error, 'decode') else str(e)}")
             except Exception as e:
                 errors.append(f"SMTP error ({self.smtp_host}:{self.smtp_port}): {str(e)}")
 
-        # 4. Fallback to Local Preview with clear user notification
-        err_msg = "; ".join(errors) if errors else "No SMTP or Brevo/Resend API keys configured."
-        return {
-            "status": "STORED_IN_PREVIEW",
-            "recipient": recipient_email,
-            "provider": "LOCAL_HTML_PREVIEW",
-            "message": f"Email alert stored in preview folder ({filepath}). {err_msg} Please enter your Gmail SMTP / Brevo credentials in User Profile & Alert Settings to receive emails directly in your inbox.",
-            "preview_path": filepath,
-            "errors": errors
-        }
+        # 4. Fallback or Error reporting
+        if errors:
+            err_msg = "; ".join(errors)
+            return {
+                "status": "FAILED",
+                "recipient": recipient_email,
+                "provider": "ERROR",
+                "message": f"Failed to deliver email: {err_msg}",
+                "preview_path": filepath,
+                "errors": errors
+            }
+        else:
+            return {
+                "status": "STORED_IN_PREVIEW",
+                "recipient": recipient_email,
+                "provider": "LOCAL_HTML_PREVIEW",
+                "message": f"Email alert stored in preview file ({filepath}). No SMTP credentials or Brevo/Resend API key configured yet. Please configure your email service in User Profile & Alert Settings to receive emails in your inbox.",
+                "preview_path": filepath,
+                "errors": []
+            }

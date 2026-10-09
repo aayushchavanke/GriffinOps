@@ -755,6 +755,7 @@ async function fetchUserProfile() {
       if (profileOrgSpan && p.organization) {
         profileOrgSpan.innerText = p.organization;
       }
+      loadEmailServerSettings();
     }
   } catch (err) {}
 }
@@ -820,8 +821,76 @@ async function sendTestAlertSlack() {
   }
 }
 
+async function loadEmailServerSettings() {
+  try {
+    const resp = await fetch("/api/v1/user/email-config");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    
+    const hostInp = document.getElementById("cfg-smtp-host");
+    const portInp = document.getElementById("cfg-smtp-port");
+    const userInp = document.getElementById("cfg-smtp-user");
+    const badge = document.getElementById("email-active-provider-badge");
+
+    if (hostInp && data.smtp_host) hostInp.value = data.smtp_host;
+    if (portInp && data.smtp_port) portInp.value = data.smtp_port;
+    if (userInp && data.smtp_user) userInp.value = data.smtp_user;
+
+    if (badge) {
+      if (data.active_provider === "SMTP_SERVER") {
+        badge.textContent = `✓ Active: SMTP (${data.smtp_host || 'Configured'})`;
+        badge.className = "badge badge-mint";
+      } else if (data.active_provider === "RESEND_API") {
+        badge.textContent = "✓ Active: Resend API";
+        badge.className = "badge badge-purple";
+      } else if (data.active_provider === "BREVO_API") {
+        badge.textContent = "✓ Active: Brevo API";
+        badge.className = "badge badge-purple";
+      } else {
+        badge.textContent = "⚠️ Preview Only (No SMTP / API Key)";
+        badge.className = "badge badge-amber";
+      }
+    }
+  } catch (err) {}
+}
+
+async function saveEmailServerSettings() {
+  const host = document.getElementById("cfg-smtp-host") ? document.getElementById("cfg-smtp-host").value.trim() : "";
+  const port = document.getElementById("cfg-smtp-port") ? parseInt(document.getElementById("cfg-smtp-port").value.trim()) || 587 : 587;
+  const user = document.getElementById("cfg-smtp-user") ? document.getElementById("cfg-smtp-user").value.trim() : "";
+  const pass = document.getElementById("cfg-smtp-pass") ? document.getElementById("cfg-smtp-pass").value.trim() : "";
+  const resendKey = document.getElementById("cfg-resend-key") ? document.getElementById("cfg-resend-key").value.trim() : "";
+  const brevoKey = document.getElementById("cfg-brevo-key") ? document.getElementById("cfg-brevo-key").value.trim() : "";
+
+  showToast("💾 Saving email delivery configuration...");
+  try {
+    const payload = {
+      smtp_host: host || null,
+      smtp_port: port,
+      smtp_user: user || null
+    };
+    if (pass) payload.smtp_pass = pass;
+    if (resendKey) payload.resend_api_key = resendKey;
+    if (brevoKey) payload.brevo_api_key = brevoKey;
+
+    const resp = await fetch("/api/v1/user/email-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (resp.ok) {
+      showToast("✅ Email server credentials saved successfully!");
+      loadEmailServerSettings();
+    } else {
+      showToast("❌ Failed to save email configuration.");
+    }
+  } catch (err) {
+    showToast("Error updating email server settings: " + err.message);
+  }
+}
+
 async function sendTestAlertEmail() {
-  const emailsRaw = document.getElementById("pref-dev-emails").value;
+  const emailsRaw = document.getElementById("pref-dev-emails") ? document.getElementById("pref-dev-emails").value : "";
   const emails = emailsRaw.split(",").map(e => e.trim()).filter(e => e.length > 0);
   const targetEmail = emails[0] || (currentUser ? currentUser.email : "engineer@company.com");
 
@@ -835,11 +904,16 @@ async function sendTestAlertEmail() {
     if (resp.ok) {
       const res = await resp.json();
       if (res.status === "DELIVERED") {
-        showToast(`🎉 Alert email sent to ${targetEmail} via ${res.provider}!`);
+        showToast(`🎉 Alert email delivered to ${targetEmail} via ${res.provider}!`);
+      } else if (res.status === "FAILED") {
+        showToast(`❌ Email delivery failed: ${res.message || 'Check email configuration.'}`);
       } else {
-        showToast(`📋 Test alert created and logged to Alert Dispatch Log for ${targetEmail}!`);
+        showToast(`📋 Alert preview generated. No SMTP/API credentials configured yet. See Email Delivery Engine below.`);
       }
       fetchWatchdogHistory();
+    } else {
+      const errTxt = await resp.text();
+      showToast("❌ Server error sending email: " + errTxt);
     }
   } catch (err) {
     showToast("Error sending email alert: " + err.message);

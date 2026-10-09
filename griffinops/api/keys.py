@@ -19,13 +19,13 @@ class APIKeyManager:
         persisted = storage.load_api_keys()
         if persisted:
             self.keys.update(persisted)
-        if not self.keys:
-            self.generate_api_key(
-                name="Cloud Target Web Application",
-                target_url="https://aayushchavanke.github.io/griffinops-demo-target/",
-                owner_email="admin@griffinops.io",
-                predefined_key="gop_live_demo01"
-            )
+        # Purge legacy hardcoded demo seed if present in database or memory
+        legacy_keys = [k for k, v in list(self.keys.items()) if k == "gop_live_demo01" or (isinstance(v, dict) and v.get("name") == "Cloud Target Web Application")]
+        for lk in legacy_keys:
+            self.keys.pop(lk, None)
+            storage.delete_api_key(lk)
+            storage.delete_monitored_site_by_name_or_key(lk)
+        storage.delete_monitored_site_by_name_or_key("Cloud Target Web Application")
 
     def generate_api_key(
         self,

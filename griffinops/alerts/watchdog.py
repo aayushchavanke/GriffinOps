@@ -23,7 +23,14 @@ class BackgroundAlertWatchdog:
         self.last_alert_time: float = 0.0
         self.cooldown_seconds: float = 20.0
         self.dispatch_log: List[dict] = storage.load_dispatch_logs(limit=20)
-        self.registered_developer_emails = ["sre-lead@company.com"]
+        persisted_profile = storage.load_profile()
+        dev_emails = persisted_profile.get("developer_emails") if persisted_profile else None
+        if dev_emails:
+            self.registered_developer_emails = [e.strip() for e in dev_emails if e and "@" in e]
+        elif persisted_profile and persisted_profile.get("email"):
+            self.registered_developer_emails = [persisted_profile["email"].strip()]
+        else:
+            self.registered_developer_emails = ["sre-lead@company.com"]
 
     def start(self):
         if self.is_running:
@@ -87,18 +94,34 @@ class BackgroundAlertWatchdog:
                     self.dispatch_log.insert(0, slack_entry)
                     storage.save_dispatch_log(slack_entry)
 
-                for email in self.registered_developer_emails:
-                    email_res = self.notifier.send_email_notification(report, recipient_email=email)
-                    log_entry = {
-                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(now)),
-                        "report_id": report.get("report_id"),
-                        "target_service": report.get("root_cause_analysis", {}).get("service"),
-                        "recipient": email,
-                        "status": email_res.get("status"),
-                        "preview_path": email_res.get("preview_path")
-                    }
-                    self.dispatch_log.insert(0, log_entry)
-                    storage.save_dispatch_log(log_entry)
+                # Dynamically retrieve registered recipients from runtime state if updated
+                recipients = list(self.registered_developer_emails) if self.registered_developer_emails else []
+                email_alerts_active = True
+                try:
+                    from griffinops.api import routes
+                    if routes and hasattr(routes, "USER_PROFILE_STATE"):
+                        email_alerts_active = routes.USER_PROFILE_STATE.get("email_alerts_enabled", True)
+                        p_emails = routes.USER_PROFILE_STATE.get("developer_emails", [])
+                        if p_emails:
+                            recipients = [e.strip() for e in p_emails if e and "@" in e]
+                        elif routes.USER_PROFILE_STATE.get("email"):
+                            recipients = [routes.USER_PROFILE_STATE["email"].strip()]
+                except Exception:
+                    pass
+
+                if email_alerts_active and recipients:
+                    for email in recipients:
+                        email_res = self.notifier.send_email_notification(report, recipient_email=email)
+                        log_entry = {
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(now)),
+                            "report_id": report.get("report_id"),
+                            "target_service": report.get("root_cause_analysis", {}).get("service"),
+                            "recipient": email,
+                            "status": email_res.get("status"),
+                            "preview_path": email_res.get("preview_path")
+                        }
+                        self.dispatch_log.insert(0, log_entry)
+                        storage.save_dispatch_log(log_entry)
                 
                 self.last_alert_time = now
                 return report

@@ -123,7 +123,7 @@ def get_real_website_telemetry(api_endpoint: Optional[str] = None):
     # Ensure all active keys in api_key_manager are registered in real_website_monitor
     if real_website_monitor and api_key_manager:
         for k in api_key_manager.list_api_keys():
-            if k.get("status") == "ACTIVE":
+            if k.get("status") == "ACTIVE" and k.get("name") != "Cloud Target Web Application" and k.get("api_key") != "gop_live_demo01":
                 target = k.get("target_url") or k.get("endpoint") or f"https://{k['name'].lower().replace(' ', '-')}.internal"
                 real_website_monitor.add_monitored_site(
                     name=k["name"],
@@ -169,6 +169,14 @@ def get_diagram_file(filename: str):
 def login(req: LoginRequest):
     try:
         res = supabase_auth.login(req.email, req.password)
+        if res and "user" in res and "email" in res["user"]:
+            u_email = res["user"]["email"]
+            USER_PROFILE_STATE["email"] = u_email
+            if watchdog:
+                current_emails = watchdog.registered_developer_emails
+                if not current_emails or current_emails == ["sre-lead@company.com"]:
+                    watchdog.registered_developer_emails = [u_email]
+                    USER_PROFILE_STATE["developer_emails"] = [u_email]
         return res
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -261,19 +269,21 @@ def serve_email_preview(filename: str):
 def update_user_profile(req: ProfileUpdateRequest):
     USER_PROFILE_STATE["name"] = req.name
     USER_PROFILE_STATE["organization"] = req.organization
-    USER_PROFILE_STATE["developer_emails"] = req.developer_emails
+    clean_emails = [e.strip() for e in req.developer_emails if e.strip() and "@" in e]
+    if clean_emails:
+        USER_PROFILE_STATE["developer_emails"] = clean_emails
+        USER_PROFILE_STATE["email"] = clean_emails[0]
+    elif req.email and "@" in req.email:
+        USER_PROFILE_STATE["email"] = req.email.strip()
+        USER_PROFILE_STATE["developer_emails"] = [req.email.strip()]
     USER_PROFILE_STATE["email_alerts_enabled"] = req.email_alerts_enabled
     if req.slack_webhook_url is not None:
         clean_url = req.slack_webhook_url.strip()
         USER_PROFILE_STATE["slack_webhook_url"] = clean_url
         if notifier:
             notifier.slack_webhook_url = clean_url or None
-    if req.developer_emails:
-        USER_PROFILE_STATE["email"] = req.developer_emails[0]
-    elif req.email:
-        USER_PROFILE_STATE["email"] = req.email
     if watchdog:
-        watchdog.registered_developer_emails = req.developer_emails
+        watchdog.registered_developer_emails = USER_PROFILE_STATE["developer_emails"]
     storage.save_profile(USER_PROFILE_STATE)
     return {"status": "SUCCESS", "message": "User recipient email & notification settings updated.", "profile": USER_PROFILE_STATE}
 

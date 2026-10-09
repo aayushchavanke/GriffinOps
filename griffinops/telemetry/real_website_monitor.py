@@ -11,7 +11,9 @@ class RealWebsiteMonitor:
     Zero mockups, zero artificial ping loops, zero hardcoded seed data.
     """
     def __init__(self):
-        self.sites: List[dict] = storage.load_monitored_sites()
+        loaded_sites = storage.load_monitored_sites()
+        # Filter out any legacy hardcoded Cloud Target demo site
+        self.sites: List[dict] = [s for s in loaded_sites if s.get("name") != "Cloud Target Web Application" and s.get("api_key") != "gop_live_demo01"]
         self.history: Dict[str, List[dict]] = storage.load_telemetry_history(limit_per_site=60)
         for s in self.sites:
             if s["url"] not in self.history:

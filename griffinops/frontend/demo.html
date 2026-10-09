@@ -297,6 +297,30 @@
       background: rgba(244, 63, 94, 0.15);
       border-color: var(--rose);
     }
+    button.action-btn.purple {
+      border-left: 4px solid #a855f7;
+      background: rgba(168, 85, 247, 0.05);
+    }
+    button.action-btn.purple:hover {
+      background: rgba(168, 85, 247, 0.15);
+      border-color: #a855f7;
+    }
+    button.action-btn.cyan {
+      border-left: 4px solid #06b6d4;
+      background: rgba(6, 182, 212, 0.05);
+    }
+    button.action-btn.cyan:hover {
+      background: rgba(6, 182, 212, 0.15);
+      border-color: #06b6d4;
+    }
+    button.action-btn.info {
+      border-left: 4px solid #3b82f6;
+      background: rgba(59, 130, 246, 0.05);
+    }
+    button.action-btn.info:hover {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: #3b82f6;
+    }
     .tag {
       font-family: 'JetBrains Mono', monospace;
       font-size: 11px;
@@ -469,16 +493,36 @@
             <span>Traffic &amp; Operational Scenarios</span>
           </div>
           <div class="action-group">
-            <button class="action-btn normal" onclick="executeTransaction('Catalog Browse Ping', 32, 200)">
-              <span>⚡ Standard API Ping (Normal Transaction)</span>
+            <button class="action-btn normal" onclick="executeTransaction('Catalog Browse Ingress', 32, 200, 14.5, 31.0)">
+              <span>⚡ Standard API Ping (Healthy Traffic)</span>
               <span class="tag">32 ms &bull; HTTP 200 OK</span>
             </button>
-            <button class="action-btn warning" onclick="executeTransaction('High Latency Query', 680, 200)">
+            <button class="action-btn warning" onclick="executeTransaction('Database Lock Contention', 680, 200, 48.0, 54.0)">
               <span>🐢 Database Contention (High Latency Anomaly)</span>
               <span class="tag">680 ms &bull; SEV-2 Hazard</span>
             </button>
-            <button class="action-btn danger" onclick="executeTransaction('Payment Gateway Drop', 1280, 500)">
-              <span>💥 Microservice Failure (HTTP 500 Outage Spike)</span>
+            <button class="action-btn warning" onclick="executeTransaction('DB Connection Pool Exhaustion', 850, 503, 72.0, 68.5)">
+              <span>🔌 DB Pool Exhaustion (Connection Timeout)</span>
+              <span class="tag">850 ms &bull; HTTP 503 Outage</span>
+            </button>
+            <button class="action-btn danger" onclick="executeTransaction('Upstream Gateway Timeout', 2500, 504, 38.0, 42.0)">
+              <span>⏳ Upstream Gateway Timeout (Downstream Deadlock)</span>
+              <span class="tag">2500 ms &bull; HTTP 504 Timeout</span>
+            </button>
+            <button class="action-btn purple" onclick="executeTransaction('API Rate Limit Breach', 18, 429, 21.0, 36.0)">
+              <span>🛑 Rate Limit Quota Breach (DDoS / Burst Throttle)</span>
+              <span class="tag">18 ms &bull; HTTP 429 Throttled</span>
+            </button>
+            <button class="action-btn danger" onclick="executeTransaction('Container Resource Exhaustion', 1150, 500, 96.8, 94.2)">
+              <span>🔥 CPU &amp; Memory Exhaustion (OOM Spill Hazard)</span>
+              <span class="tag">1150 ms &bull; CPU 96% Mem 94%</span>
+            </button>
+            <button class="action-btn cyan" onclick="executeTransaction('JWT Security Challenge', 45, 401, 15.0, 32.0)">
+              <span>🔒 Auth Token Expiration (Security Challenge)</span>
+              <span class="tag">45 ms &bull; HTTP 401 Challenge</span>
+            </button>
+            <button class="action-btn danger" onclick="executeTransaction('Payment Microservice Outage', 1280, 500, 65.0, 58.0)">
+              <span>💥 Microservice Failure (Payment Gateway Crash)</span>
               <span class="tag">1280 ms &bull; HTTP 500 Error</span>
             </button>
           </div>
@@ -738,18 +782,31 @@
         // Fallback
       }
 
-      // Default fallback
-      const fallbackKey = "gop_live_demo01";
-      sel.innerHTML = `<option value="${fallbackKey}">Default Key (${fallbackKey})</option>`;
-      inp.value = fallbackKey;
-      if (keyTag) keyTag.textContent = fallbackKey;
+      // No keys found or backend unreachable
+      sel.innerHTML = `<option value="">-- No Active API Keys Found --</option>`;
+      inp.value = "";
+      if (keyTag) keyTag.textContent = "No Key";
+      if (keyStatusBadge) {
+        keyStatusBadge.textContent = "NO KEY";
+        keyStatusBadge.style.color = "#f59e0b";
+      }
+      logMessage("⚠️ No active API key detected on backend. Please generate an API Key in GriffinOps Dashboard (Tab 2) and paste it here.", "warn");
     }
 
-    async function executeTransaction(actionName, latencyMs, statusCode) {
+    async function executeTransaction(actionName, latencyMs, statusCode, cpuPercent = null, memoryPercent = null) {
       const inp = document.getElementById("apiKeyInput");
-      const activeKey = (inp && inp.value.trim()) || "gop_live_demo01";
+      const activeKey = (inp && inp.value.trim()) || "";
 
-      logMessage(`Executing [${actionName}] — Latency: ${latencyMs}ms, Status: ${statusCode}...`);
+      if (!activeKey) {
+        logMessage(`⚠️ Please select or enter an active GriffinOps API Key before dispatching transactions.`, "warn");
+        return;
+      }
+
+      let extraMetrics = "";
+      if (cpuPercent !== null && memoryPercent !== null) {
+        extraMetrics = ` &bull; CPU: ${cpuPercent}% Mem: ${memoryPercent}%`;
+      }
+      logMessage(`Executing [${actionName}] — Latency: ${latencyMs}ms, Status: HTTP ${statusCode}${extraMetrics}...`);
 
       const payload = {
         api_key: activeKey,
@@ -758,6 +815,8 @@
         status_code: statusCode,
         payload_bytes: 1024 + Math.floor(Math.random() * 2048)
       };
+      if (cpuPercent !== null) payload.cpu_percent = cpuPercent;
+      if (memoryPercent !== null) payload.memory_percent = memoryPercent;
 
       try {
         const resp = await fetch(`${serverUrl}/api/v1/telemetry/ingest`, {
@@ -771,7 +830,7 @@
 
         if (resp.ok) {
           const res = await resp.json();
-          if (statusCode >= 400 || latencyMs >= 600) {
+          if (statusCode >= 400 || latencyMs >= 600 || (cpuPercent && cpuPercent > 85)) {
             logMessage(`⚠️ Hazard ingested: HTTP ${statusCode} (${latencyMs}ms) &bull; Pre-Mortem evaluation triggered!`, "warn");
           } else {
             logMessage(`✓ Telemetry ingested successfully: ${latencyMs}ms &bull; HTTP ${statusCode} OK`, "ok");

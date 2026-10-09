@@ -673,6 +673,32 @@ class StorageManager:
             conn.execute("UPDATE api_keys SET status = ? WHERE key_id = ?", (status, key_id))
             conn.commit()
 
+    def delete_api_key(self, api_key: str):
+        with self._lock:
+            if self.is_postgres:
+                conn = self._get_pg_connection()
+                if conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM api_keys WHERE api_key = %s", (api_key,))
+                    return
+
+            conn = self._get_sqlite_connection()
+            conn.execute("DELETE FROM api_keys WHERE api_key = ?", (api_key,))
+            conn.commit()
+
+    def delete_monitored_site_by_name_or_key(self, name_or_key: str):
+        with self._lock:
+            if self.is_postgres:
+                conn = self._get_pg_connection()
+                if conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM monitored_sites WHERE name = %s OR api_key = %s", (name_or_key, name_or_key))
+                    return
+
+            conn = self._get_sqlite_connection()
+            conn.execute("DELETE FROM monitored_sites WHERE name = ? OR api_key = ?", (name_or_key, name_or_key))
+            conn.commit()
+
     def mark_api_key_dirty(self, api_key: str, requests_total: int, latest_latency_ms: Optional[float] = None):
         with self._flush_lock:
             self._dirty_keys[api_key] = (requests_total, latest_latency_ms)

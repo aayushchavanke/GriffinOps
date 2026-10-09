@@ -63,6 +63,13 @@ routes.watchdog = BackgroundAlertWatchdog(
     fault_simulator=routes.fault_simulator,
     notifier=routes.notifier
 )
+if _saved_profile:
+    dev_emails = _saved_profile.get("developer_emails")
+    if dev_emails:
+        routes.watchdog.registered_developer_emails = [e.strip() for e in dev_emails if e and "@" in e]
+    elif _saved_profile.get("email"):
+        routes.watchdog.registered_developer_emails = [_saved_profile["email"].strip()]
+
 routes.watchdog.start()
 
 @app.on_event("startup")
